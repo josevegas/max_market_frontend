@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Max Market</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#FA0A32">
+  <link rel="icon" type="image/png" href="logo.png">
+  <script>
+    // Se aplica antes de pintar para que no haya un parpadeo claro al entrar
+    // en modo oscuro.
+    (function () {
+      try {
+        var t = localStorage.getItem('maxmarket.theme');
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark' : 'light';
+        }
+        if (t === 'dark') document.documentElement.classList.add('dark-mode');
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<div class="space-y-5">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100 truncate">
+        {{ esNuevo() ? 'Nuevo producto' : producto()?.descripcion_corta }}
+      </h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        @if (esNuevo()) {
+          Alta en el maestro de productos
+        } @else {
+          <span class="font-mono">{{ producto()?.sku }}</span>
+        }
+      </p>
+    </div>
+    <div class="flex gap-2 shrink-0">
+      <p-button label="Volver" icon="pi pi-arrow-left" severity="secondary" [outlined]="true" (onClick)="volver()" />
+      <p-button
+        [label]="esNuevo() ? 'Crear' : 'Guardar'"
+        icon="pi pi-check"
+        [loading]="guardando()"
+        [disabled]="!valido"
+        (onClick)="guardar()"
+      />
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <p-skeleton height="20rem" />
+  } @else {
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <!-- Identificación -->
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="pi pi-tag text-brand-600"></i>
+          <h3 class="font-semibold text-slate-800 dark:text-slate-100">Identificación</h3>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">SKU *</label>
+          <input pInputText [(ngModel)]="form.sku" maxlength="15" class="w-full font-mono" />
+          <span class="text-[11px] text-slate-400">Único en todo el maestro</span>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Tipo *</label>
+          <p-select
+            [(ngModel)]="form.tipo_producto"
+            [options]="tipos"
+            optionLabel="label"
+            optionValue="value"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Código de barras</label>
+          <input pInputText [(ngModel)]="form.codigo_barras" maxlength="50" class="w-full font-mono" />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Presentación</label>
+          <p-select
+            [(ngModel)]="form.presentacion_id"
+            [options]="presentaciones()"
+            optionLabel="descripcion"
+            optionValue="id"
+            placeholder="Sin presentación"
+            [showClear]="true"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+      </div>
+
+      <!-- Clasificación -->
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="pi pi-sitemap text-brand-600"></i>
+          <h3 class="font-semibold text-slate-800 dark:text-slate-100">Clasificación</h3>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Familia *</label>
+          <p-select
+            [(ngModel)]="form.familia_id"
+            (ngModelChange)="alCambiarFamilia()"
+            [options]="familias()"
+            optionLabel="nombre"
+            optionValue="id"
+            placeholder="Seleccione..."
+            [filter]="true"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Sub familia *</label>
+          <p-select
+            [(ngModel)]="form.sub_familia_id"
+            (ngModelChange)="alCambiarSubFamilia()"
+            [options]="subFamiliasDeLaFamilia()"
+            optionLabel="nombre"
+            optionValue="id"
+            [placeholder]="form.familia_id ? 'Seleccione...' : 'Elija primero una familia'"
+            [disabled]="!form.familia_id"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Categoría *</label>
+          <p-select
+            [(ngModel)]="form.categoria_id"
+            (ngModelChange)="alCambiarCategoria()"
+            [options]="categoriasDeLaSubFamilia()"
+            optionLabel="nombre"
+            optionValue="id"
+            [placeholder]="form.sub_familia_id ? 'Seleccione...' : 'Elija primero una sub familia'"
+            [disabled]="!form.sub_familia_id"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Sub categoría</label>
+          <p-select
+            [(ngModel)]="form.sub_categoria_id"
+            [options]="subCategoriasDeLaCategoria()"
+            optionLabel="nombre"
+            optionValue="id"
+            [placeholder]="form.categoria_id ? 'Opcional' : 'Elija primero una categoría'"
+            [disabled]="!form.categoria_id"
+            [showClear]="true"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+      </div>
+
+      <!-- Descripciones -->
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="pi pi-align-left text-brand-600"></i>
+          <h3 class="font-semibold text-slate-800 dark:text-slate-100">Descripciones</h3>
+        </div>
+        <p class="text-xs text-slate-400 -mt-2">Cada una va a un documento distinto</p>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Corta * <span class="text-slate-400">(comprobante)</span></label>
+          <input pInputText [(ngModel)]="form.descripcion_corta" maxlength="32" class="w-full" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Legal * <span class="text-slate-400">(comprobante)</span></label>
+          <input pInputText [(ngModel)]="form.descripcion_legal" maxlength="100" class="w-full" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Compra * <span class="text-slate-400">(órdenes y guías)</span></label>
+          <input pInputText [(ngModel)]="form.descripcion_compra" maxlength="100" class="w-full" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Web * <span class="text-slate-400">(venta)</span></label>
+          <input pInputText [(ngModel)]="form.descripcion_web" maxlength="100" class="w-full" />
+        </div>
+      </div>
+    </div>
+  }
+</div>

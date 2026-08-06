@@ -1,0 +1,105 @@
+<div class="space-y-5">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">Familias</h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        Primer nivel del catálogo: agrupa las sub familias
+      </p>
+    </div>
+    <p-button label="Nueva familia" icon="pi pi-plus" (onClick)="nueva()" />
+  </div>
+
+  <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-4">
+    <div class="flex flex-wrap gap-4 items-end">
+      <div class="flex flex-col gap-1 flex-1 min-w-48">
+        <label class="text-xs font-medium text-slate-500">Buscar</label>
+        <p-iconfield>
+          <p-inputicon styleClass="pi pi-search" />
+          <input
+            pInputText
+            [ngModel]="busqueda()"
+            (ngModelChange)="busqueda.set($event)"
+            placeholder="Nombre o código..."
+            class="w-full"
+          />
+        </p-iconfield>
+      </div>
+      <div class="flex items-center gap-2 pb-1">
+        <p-toggleswitch [ngModel]="verInactivos()" (ngModelChange)="alternarInactivos()" />
+        <span class="text-sm text-slate-600 dark:text-slate-300">Ver inactivos</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border overflow-hidden">
+    <p-table [value]="filtradas()" [loading]="cargando()" styleClass="p-datatable-sm">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Nombre</th>
+          <th class="w-32">Código</th>
+          <th class="w-28 text-center">Estado</th>
+          <th class="w-32 text-center">Acciones</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-f>
+        <tr>
+          <td class="font-medium">{{ f.nombre }}</td>
+          <td class="font-mono text-sm text-slate-600 dark:text-slate-300">{{ f.codigo || '—' }}</td>
+          <td class="text-center">
+            @if (f.is_active) {
+              <p-tag value="Activa" severity="success" />
+            } @else {
+              <p-tag value="Inactiva" severity="secondary" />
+            }
+          </td>
+          <td class="text-center whitespace-nowrap">
+            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="editar(f)" />
+            @if (f.is_active) {
+              <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="darDeBaja(f)" />
+            }
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="4" class="text-center text-slate-400 py-10">No hay familias que mostrar</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>
+
+<p-dialog
+  [visible]="dialogoAbierto()"
+  (visibleChange)="dialogoAbierto.set($event)"
+  [modal]="true"
+  [style]="{ width: '30rem' }"
+  [header]="editando() ? 'Editar familia' : 'Nueva familia'"
+>
+  <div class="space-y-4 pt-2">
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium text-slate-500">Nombre *</label>
+      <input pInputText [(ngModel)]="nombre" maxlength="100" class="w-full" />
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium text-slate-500">Código</label>
+      <input
+        pInputText
+        [(ngModel)]="codigo"
+        maxlength="3"
+        class="w-full"
+        placeholder="Hasta 3 caracteres"
+      />
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="dialogoAbierto.set(false)" />
+    <p-button
+      [label]="editando() ? 'Guardar' : 'Crear'"
+      icon="pi pi-check"
+      [loading]="guardando()"
+      [disabled]="!nombre.trim()"
+      (onClick)="guardar()"
+    />
+  </ng-template>
+</p-dialog>

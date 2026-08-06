@@ -1,0 +1,33 @@
+<header
+  class="h-14 shrink-0 flex items-center gap-3 px-4 bg-white dark:bg-surface-1 border-b border-slate-200 dark:border-surface-border"
+>
+  <button
+    type="button"
+    (click)="toggleSidebar.emit()"
+    class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-2"
+    aria-label="Alternar menú"
+  >
+    <i class="pi pi-bars"></i>
+  </button>
+
+  <!-- Marca: carrito + logotipo en el degradado rojo→naranja del logo. -->
+  <a routerLink="/" class="flex items-center gap-2 min-w-0" aria-label="Max Market, inicio">
+    <i class="pi pi-shopping-cart text-2xl text-brand-500"></i>
+    <span
+      class="font-extrabold text-lg tracking-tight bg-marca bg-clip-text text-transparent truncate"
+    >
+      Max Market
+    </span>
+  </a>
+
+  <div class="flex-1"></div>
+
+  <button
+    type="button"
+    (click)="alternarTema()"
+    class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-2"
+    [attr.aria-label]="oscuro() ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+  >
+    <i class="pi" [ngClass]="oscuro() ? 'pi-sun' : 'pi-moon'"></i>
+  </button>
+</header>

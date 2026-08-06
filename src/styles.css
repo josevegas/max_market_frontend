@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background-color: #ffffff;
+  color: #334155;
+}
+html.dark-mode, html.dark-mode body {
+  background-color: #0b0d12;
+  color: #e5e7eb;
+}
+
+html.dark-mode * { scrollbar-color: #2a2e38 #13161d; }
+html.dark-mode *::-webkit-scrollbar { width: 10px; height: 10px; }
+html.dark-mode *::-webkit-scrollbar-track { background: #13161d; }
+html.dark-mode *::-webkit-scrollbar-thumb { background: #2a2e38; border-radius: 6px; }
+html.dark-mode *::-webkit-scrollbar-thumb:hover { background: #3a3f4d; }
+
+/* Tooltip PrimeNG sin saltos de línea */
+.p-tooltip.whitespace-nowrap { max-width: none; }
+.p-tooltip.whitespace-nowrap .p-tooltip-text { white-space: nowrap; }

@@ -1,0 +1,11 @@
+packages:
+  - '.'
+
+# pnpm no ejecuta scripts de instalación salvo que se aprueben explícitamente.
+# esbuild y @parcel/watcher los necesitan para su binario nativo; sin ellos,
+# el CLI de Angular falla al lanzar su `pnpm install` interno.
+allowBuilds:
+  esbuild: true
+  '@parcel/watcher': true
+  lmdb: true
+  msgpackr-extract: true
