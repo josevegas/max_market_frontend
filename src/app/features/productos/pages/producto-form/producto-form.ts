@@ -30,8 +30,9 @@ import {
 
 /** Los tipos que admite el modelo (`tipo_producto`, 20 caracteres). */
 const TIPOS = [
-  { label: 'Bien', value: 'bien' },
-  { label: 'Servicio', value: 'servicio' },
+  { label: 'Producto Terminado', value: 'terminado' },
+  { label: 'Insumo', value: 'insumo' },
+  { label: 'Producto Elaborado', value: 'elaborado' },
 ];
 
 @Component({
