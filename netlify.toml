@@ -1,0 +1,8 @@
+[build]
+  command = "pnpm run build"
+  publish = "dist/max-market-frontend/browser"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
