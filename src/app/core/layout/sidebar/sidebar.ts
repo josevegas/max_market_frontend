@@ -36,5 +36,9 @@ export class Sidebar {
         { etiqueta: 'Presentaciones', icono: 'pi-inbox', ruta: '/presentaciones' },
       ],
     },
+    {
+      titulo: 'Proveedores',
+      items: [{ etiqueta: 'Empresas', icono: 'pi-building', ruta: '/empresas' }],
+    },
   ];
 }

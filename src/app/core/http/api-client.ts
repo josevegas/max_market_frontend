@@ -24,6 +24,10 @@ export class ApiClient {
     return this.pedir(this.http.post<T>(this.url(path), body, this.opciones(options)));
   }
 
+  put<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
+    return this.pedir(this.http.put<T>(this.url(path), body, this.opciones(options)));
+  }
+
   patch<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
     return this.pedir(this.http.patch<T>(this.url(path), body, this.opciones(options)));
   }

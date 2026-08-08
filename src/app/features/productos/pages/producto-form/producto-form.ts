@@ -7,9 +7,13 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
+import { TableModule } from 'primeng/table';
+import { TabsModule } from 'primeng/tabs';
 import { TagModule } from 'primeng/tag';
 
 import { AppError } from '../../../../core/http/api-error';
+import { ProveedorDelProducto } from '../../../proveedores/models/catalogo.model';
+import { ProveedorProductoService } from '../../../proveedores/services/proveedor-productos.service';
 import {
   Categoria,
   Familia,
@@ -45,6 +49,8 @@ const TIPOS = [
     InputTextModule,
     SelectModule,
     SkeletonModule,
+    TableModule,
+    TabsModule,
     TagModule,
   ],
   templateUrl: './producto-form.html',
@@ -56,6 +62,7 @@ export class ProductoForm implements OnInit {
   private readonly categoriaSvc = inject(CategoriaService);
   private readonly subCategoriaSvc = inject(SubCategoriaService);
   private readonly presentacionSvc = inject(PresentacionService);
+  private readonly asignacionSvc = inject(ProveedorProductoService);
   private readonly msg = inject(MessageService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -91,6 +98,11 @@ export class ProductoForm implements OnInit {
   readonly subCategoriasDeLaCategoria = computed(() =>
     this.subCategorias().filter((sc) => sc.categoria_id === this.categoriaSel()),
   );
+
+  /** Quién provee este producto. Solo lectura: la asignación se mantiene desde
+   *  la ficha de la empresa. Llega ordenado del más rápido al más lento. */
+  readonly proveedores = signal<ProveedorDelProducto[]>([]);
+  readonly cargandoProveedores = signal(false);
 
   form: ProductoCreate = this.formVacio();
 
@@ -149,11 +161,25 @@ export class ProductoForm implements OnInit {
         this.subFamiliaSel.set(p.sub_familia_id);
         this.categoriaSel.set(p.categoria_id);
         this.cargando.set(false);
+        this.cargarProveedores(p.id);
       },
       error: (e: AppError) => {
         this.cargando.set(false);
         this.msg.add({ severity: 'error', summary: 'Error', detail: e.message });
       },
+    });
+  }
+
+  private cargarProveedores(productoId: string): void {
+    this.cargandoProveedores.set(true);
+    this.asignacionSvc.proveedoresDe(productoId).subscribe({
+      next: (items) => {
+        this.proveedores.set(items);
+        this.cargandoProveedores.set(false);
+      },
+      // Un fallo acá no debe tapar el formulario con un toast: el panel se
+      // queda vacío y el producto se sigue pudiendo editar.
+      error: () => this.cargandoProveedores.set(false),
     });
   }
 

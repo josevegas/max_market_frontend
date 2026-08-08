@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -34,6 +35,7 @@ export class EmpresaLista implements OnInit {
   private readonly svc = inject(EmpresaService);
   private readonly msg = inject(MessageService);
   private readonly confirm = inject(ConfirmationService);
+  private readonly router = inject(Router);
 
   readonly cargando = signal(false);
   readonly items = signal<Empresa[]>([]);
@@ -91,6 +93,14 @@ export class EmpresaLista implements OnInit {
     this.busqueda.set('');
     this.soloProveedores.set(false);
     this.cargar();
+  }
+
+  nuevo(): void {
+    this.router.navigate(['/empresas/nuevo']);
+  }
+
+  editar(empresa: Empresa): void {
+    this.router.navigate(['/empresas', empresa.id]);
   }
 
   darDeBaja(empresa: Empresa): void {

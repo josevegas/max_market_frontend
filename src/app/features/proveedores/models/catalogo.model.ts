@@ -15,33 +15,98 @@ export interface Auditoria {
   updated_by: string | null;
 }
 // ---- Empresa ----
-export interface Empresa extends Auditoria{
-    ruc: string;
-    razon_social: string;
-    ubigeo_sunat: string;
-    direccion: string;
-    telefono: string | null;
-    email: string | null;
-    es_proveedor: boolean;
-    es_ag_retencion: boolean;
-    es_ag_percepcion: boolean;
+export interface Empresa extends Auditoria {
+  ruc: string;
+  razon_social: string;
+  ubigeo_sunat: string;
+  direccion: string | null;
+  telefono: string | null;
+  email: string | null;
+  /** Estado de contribuyente según SUNAT ("ACTIVO", "BAJA DE OFICIO"...). */
+  estado: string | null;
+  es_proveedor: boolean;
+  es_ag_retencion: boolean;
+  es_ag_percepcion: boolean;
 }
-export interface EmpresaCreate{
-    ruc:string;
-    es_proveedor:boolean;
+
+/** El alta corriente va por `desde-ruc`, que arma esto en el servidor con lo
+ *  que devuelve SUNAT. Se declara completo porque el POST directo sigue
+ *  existiendo y el backend exige `razon_social`, `ubigeo_sunat` y `estado`. */
+export interface EmpresaCreate {
+  ruc: string;
+  razon_social: string;
+  ubigeo_sunat: string;
+  estado: string;
+  direccion?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  es_proveedor?: boolean;
+  es_ag_retencion?: boolean;
+  es_ag_percepcion?: boolean;
 }
-export interface EmpresaUpdate{
-    direccion:string|null;
-    telefono: string|null;
-    email:string|null;
-    es_proveedor:boolean;
+
+export interface EmpresaUpdate {
+  direccion?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  es_proveedor?: boolean;
+}
+
+/** Respuesta de `GET /empresas/ruc/{ruc}`: datos de SUNAT ya normalizados y
+ *  sin guardar nada. Los indicadores de agente llegan como "SI"/"NO". */
+export interface ConsultaRuc {
+  ruc: string;
+  razon_social: string;
+  direccion_completa: string | null;
+  ubigeo_sunat: string | null;
+  es_agente_de_retencion: string | null;
+  es_agente_de_percepcion: string | null;
+  estado: string | null;
+  condicion: string | null;
+  crudo: Record<string, unknown>;
+}
+
+// ---- Productos del proveedor ----
+
+/** Fila de `proveedor_productos`: qué empresa provee qué producto y en cuántos
+ *  días lo atiende. Es lo que devuelven el PUT, el POST masivo y el DELETE. */
+export interface ProveedorProducto extends Auditoria {
+  empresa_id: string;
+  producto_id: string;
+  tiempo_atencion: number;
+}
+
+/** Fila de `GET /empresas/{id}/productos`, con el producto ya resuelto.
+ *  El `id` es el de la asignación, no el del producto. Sin auditoría. */
+export interface ProductoDelProveedor {
+  id: string;
+  producto_id: string;
+  sku: string;
+  descripcion_corta: string;
+  tiempo_atencion: number;
+}
+
+/** Fila de `GET /productos/{id}/proveedores`, del más rápido al más lento. */
+export interface ProveedorDelProducto {
+  id: string;
+  empresa_id: string;
+  razon_social: string;
+  ruc: string;
+  tiempo_atencion: number;
+}
+
+/** Una línea del alta masiva. `tiempo_atencion` va en días, de 0 a 365. */
+export interface AsignacionProducto {
+  producto_id: string;
+  tiempo_atencion: number;
 }
 
 /** Parámetros de listado que acepta la API. No hay paginación por página:
  *  el backend expone `limite`/`desplazamiento`. */
 export interface ParamsListado {
   solo_activos?: boolean;
-  solo_proveedores?:boolean;
+  /** El filtro que declara el router de empresas es `es_proveedor`. */
+  es_proveedor?: boolean | null;
   limite?: number;
   desplazamiento?: number;
   [filtro: string]: unknown;

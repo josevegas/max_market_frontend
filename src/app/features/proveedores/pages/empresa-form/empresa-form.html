@@ -1,0 +1,283 @@
+<div class="space-y-5">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100 truncate">
+        {{ esNuevo() ? 'Nueva empresa' : empresa()?.razon_social }}
+      </h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        @if (esNuevo()) {
+          Alta asistida: se consulta el RUC en SUNAT
+        } @else {
+          <span class="font-mono">{{ empresa()?.ruc }}</span>
+        }
+      </p>
+    </div>
+    <div class="flex gap-2 shrink-0">
+      <p-button label="Volver" icon="pi pi-arrow-left" severity="secondary" [outlined]="true" (onClick)="volver()" />
+      @if (esNuevo()) {
+        <p-button
+          label="Crear"
+          icon="pi pi-check"
+          [loading]="guardando()"
+          [disabled]="!consulta()"
+          (onClick)="crear()"
+        />
+      } @else {
+        <p-button label="Guardar" icon="pi pi-check" [loading]="guardando()" (onClick)="guardar()" />
+      }
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <p-skeleton height="20rem" />
+  } @else if (esNuevo()) {
+    <!-- ── Alta ────────────────────────────────────────────────────────── -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="pi pi-id-card text-brand-600"></i>
+          <h3 class="font-semibold text-slate-800 dark:text-slate-100">Identificación</h3>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">RUC *</label>
+          <div class="flex gap-2">
+            <input
+              pInputText
+              [(ngModel)]="ruc"
+              (ngModelChange)="alCambiarRuc()"
+              maxlength="11"
+              inputmode="numeric"
+              placeholder="20552103816"
+              class="flex-1 font-mono"
+            />
+            <p-button
+              label="Consultar"
+              icon="pi pi-search"
+              [loading]="consultando()"
+              [disabled]="!rucValido"
+              (onClick)="consultarRuc()"
+            />
+          </div>
+          <span class="text-[11px] text-slate-400">11 dígitos numéricos</span>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <p-toggleswitch [(ngModel)]="esProveedor" />
+          <span class="text-sm text-slate-600 dark:text-slate-300">Es proveedor</span>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="pi pi-building text-brand-600"></i>
+          <h3 class="font-semibold text-slate-800 dark:text-slate-100">Datos de SUNAT</h3>
+        </div>
+
+        @if (consulta(); as c) {
+          <div class="space-y-3 text-sm">
+            <div>
+              <p class="text-xs text-slate-500">Razón social</p>
+              <p class="font-medium text-slate-800 dark:text-slate-100">{{ c.razon_social }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500">Dirección</p>
+              <p class="text-slate-700 dark:text-slate-200">{{ c.direccion_completa || '—' }}</p>
+            </div>
+            <div class="flex gap-6">
+              <div>
+                <p class="text-xs text-slate-500">Ubigeo</p>
+                <p class="font-mono text-slate-700 dark:text-slate-200">{{ c.ubigeo_sunat || '—' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500">Estado</p>
+                <p class="text-slate-700 dark:text-slate-200">{{ c.estado || '—' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500">Condición</p>
+                <p class="text-slate-700 dark:text-slate-200">{{ c.condicion || '—' }}</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2 pt-1">
+              @if (esSi(c.es_agente_de_retencion)) {
+                <p-tag value="Agente de retención" severity="warn" />
+              }
+              @if (esSi(c.es_agente_de_percepcion)) {
+                <p-tag value="Agente de percepción" severity="warn" />
+              }
+            </div>
+            @if (!c.ubigeo_sunat) {
+              <p class="text-xs text-red-600 dark:text-red-400">
+                SUNAT no devolvió el ubigeo; el alta será rechazada por el servidor.
+              </p>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-slate-400 py-8 text-center">
+            Escriba un RUC y pulse «Consultar» para traer los datos.
+          </p>
+        }
+      </div>
+    </div>
+  } @else {
+    <!-- ── Edición ─────────────────────────────────────────────────────── -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="pi pi-building text-brand-600"></i>
+          <h3 class="font-semibold text-slate-800 dark:text-slate-100">Datos de SUNAT</h3>
+        </div>
+        <p class="text-xs text-slate-400 -mt-2">No se editan: los mantiene SUNAT</p>
+
+        <div class="space-y-3 text-sm">
+          <div>
+            <p class="text-xs text-slate-500">RUC</p>
+            <p class="font-mono font-medium text-slate-800 dark:text-slate-100">{{ empresa()?.ruc }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500">Razón social</p>
+            <p class="font-medium text-slate-800 dark:text-slate-100">{{ empresa()?.razon_social }}</p>
+          </div>
+          <div class="flex gap-6">
+            <div>
+              <p class="text-xs text-slate-500">Ubigeo</p>
+              <p class="font-mono text-slate-700 dark:text-slate-200">{{ empresa()?.ubigeo_sunat }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500">Estado</p>
+              <p class="text-slate-700 dark:text-slate-200">{{ empresa()?.estado || '—' }}</p>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2 pt-1">
+            @if (empresa()?.es_ag_retencion) {
+              <p-tag value="Agente de retención" severity="warn" />
+            }
+            @if (empresa()?.es_ag_percepcion) {
+              <p-tag value="Agente de percepción" severity="warn" />
+            }
+            @if (!empresa()?.is_active) {
+              <p-tag value="Inactivo" severity="secondary" />
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="pi pi-phone text-brand-600"></i>
+          <h3 class="font-semibold text-slate-800 dark:text-slate-100">Contacto</h3>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Dirección</label>
+          <input pInputText [(ngModel)]="form.direccion" maxlength="255" class="w-full" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Teléfono</label>
+          <input pInputText [(ngModel)]="form.telefono" maxlength="20" class="w-full" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Email</label>
+          <input pInputText [(ngModel)]="form.email" maxlength="100" class="w-full" />
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <p-toggleswitch [(ngModel)]="form.es_proveedor" />
+          <span class="text-sm text-slate-600 dark:text-slate-300">Es proveedor</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Productos que distribuye ───────────────────────────────────── -->
+    <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+      <div class="flex items-center gap-2 mb-1">
+        <i class="pi pi-box text-brand-600"></i>
+        <h3 class="font-semibold text-slate-800 dark:text-slate-100">Productos que distribuye</h3>
+      </div>
+
+      @if (!puedeAsignar) {
+        <p class="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
+          Marque la empresa como proveedora y guarde para poder asignarle productos.
+        </p>
+      } @else {
+        <div class="flex flex-wrap gap-3 items-end">
+          <div class="flex flex-col gap-1 flex-1 min-w-64">
+            <label class="text-xs font-medium text-slate-500">Producto</label>
+            <p-select
+              [(ngModel)]="nuevoProductoId"
+              [options]="productosDisponibles()"
+              optionLabel="descripcion_corta"
+              optionValue="id"
+              placeholder="Seleccione un producto..."
+              [filter]="true"
+              filterBy="sku,descripcion_corta"
+              [showClear]="true"
+              appendTo="body"
+              styleClass="w-full"
+            />
+          </div>
+          <div class="flex flex-col gap-1 w-40">
+            <label class="text-xs font-medium text-slate-500">Días de atención</label>
+            <p-inputnumber
+              [(ngModel)]="nuevoTiempo"
+              [min]="0"
+              [max]="365"
+              [showButtons]="true"
+              styleClass="w-full"
+            />
+          </div>
+          <p-button
+            label="Asignar"
+            icon="pi pi-plus"
+            [loading]="asignando()"
+            [disabled]="!nuevoProductoId"
+            (onClick)="asignarProducto()"
+          />
+        </div>
+
+        <p-table [value]="asignados()" [loading]="cargandoAsignados()" styleClass="p-datatable-sm">
+          <ng-template pTemplate="header">
+            <tr>
+              <th class="w-40">SKU</th>
+              <th>Descripción</th>
+              <th class="w-44">Días de atención</th>
+              <th class="w-20 text-center"></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-a>
+            <tr>
+              <td class="font-mono text-sm font-medium">{{ a.sku }}</td>
+              <td>{{ a.descripcion_corta }}</td>
+              <td>
+                <p-inputnumber
+                  [(ngModel)]="a.tiempo_atencion"
+                  [min]="0"
+                  [max]="365"
+                  [showButtons]="true"
+                  (onFocus)="alEnfocarTiempo(a)"
+                  (onBlur)="alSalirDeTiempo(a)"
+                  styleClass="w-full"
+                />
+              </td>
+              <td class="text-center">
+                <p-button
+                  icon="pi pi-times"
+                  severity="danger"
+                  [text]="true"
+                  (onClick)="quitarProducto(a)"
+                />
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="4" class="text-center text-slate-400 py-8">
+                Este proveedor todavía no distribuye ningún producto
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      }
+    </div>
+  }
+</div>

@@ -11,6 +11,11 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/productos/productos.routes').then((m) => m.routes),
       },
+      {
+        path: '',
+        loadChildren: () =>
+          import('./features/proveedores/proveedores.routes').then((m) => m.routes),
+      },
     ],
   },
   { path: '**', redirectTo: '' },

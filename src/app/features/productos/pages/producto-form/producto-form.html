@@ -27,7 +27,29 @@
   @if (cargando()) {
     <p-skeleton height="20rem" />
   } @else {
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <p-tabs value="general">
+      <p-tablist>
+        <p-tab value="general">
+          <i class="pi pi-pencil mr-2"></i>
+          Datos generales
+        </p-tab>
+        <!-- Sin producto guardado no hay a quién consultarle los proveedores. -->
+        <p-tab value="proveedores" [disabled]="esNuevo()">
+          <i class="pi pi-truck mr-2"></i>
+          Proveedores
+          @if (!esNuevo() && proveedores().length) {
+            <span
+              class="ml-2 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-surface-2 text-slate-600 dark:text-slate-300"
+            >
+              {{ proveedores().length }}
+            </span>
+          }
+        </p-tab>
+      </p-tablist>
+
+      <p-tabpanels class="!bg-transparent !px-0">
+        <p-tabpanel value="general">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
       <!-- Identificación -->
       <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
         <div class="flex items-center gap-2 mb-1">
@@ -37,7 +59,7 @@
 
         <div class="flex flex-col gap-1">
           <label class="text-xs font-medium text-slate-500">SKU *</label>
-          <input pInputText [(ngModel)]="form.sku" maxlength="15" class="w-full font-mono" />
+          <input pInputText [(ngModel)]="form.sku" maxlength="15" class="w-full font-mono" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
           <span class="text-[11px] text-slate-400">Único en todo el maestro</span>
         </div>
 
@@ -55,7 +77,7 @@
 
         <div class="flex flex-col gap-1">
           <label class="text-xs font-medium text-slate-500">Código de barras</label>
-          <input pInputText [(ngModel)]="form.codigo_barras" maxlength="50" class="w-full font-mono" />
+          <input pInputText [(ngModel)]="form.codigo_barras" maxlength="50" class="w-full font-mono" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
         </div>
 
         <div class="flex flex-col gap-1">
@@ -166,6 +188,53 @@
           <input pInputText [(ngModel)]="form.descripcion_web" maxlength="100" class="w-full" />
         </div>
       </div>
-    </div>
+          </div>
+        </p-tabpanel>
+
+        <p-tabpanel value="proveedores">
+          <!-- Solo lectura: la asignación se mantiene desde la ficha de la empresa. -->
+          <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+            <div class="flex items-center gap-2 mb-1">
+              <i class="pi pi-truck text-brand-600"></i>
+              <h3 class="font-semibold text-slate-800 dark:text-slate-100">
+                Proveedores de este producto
+              </h3>
+            </div>
+            <p class="text-xs text-slate-400 -mt-2">
+              Del más rápido al más lento. Para asignar, vaya a la ficha de la empresa.
+            </p>
+
+            <p-table [value]="proveedores()" [loading]="cargandoProveedores()" styleClass="p-datatable-sm">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th>Razón social</th>
+                  <th class="w-40">RUC</th>
+                  <th class="w-40">Días de atención</th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-p let-i="rowIndex">
+                <tr>
+                  <td>
+                    <span class="font-medium">{{ p.razon_social }}</span>
+                    @if (i === 0) {
+                      <p-tag value="Más rápido" severity="success" styleClass="ml-2" />
+                    }
+                  </td>
+                  <td class="font-mono text-sm">{{ p.ruc }}</td>
+                  <td>{{ p.tiempo_atencion }} {{ p.tiempo_atencion === 1 ? 'día' : 'días' }}</td>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="emptymessage">
+                <tr>
+                  <td colspan="3" class="text-center text-slate-400 py-8">
+                    Ningún proveedor distribuye este producto todavía
+                  </td>
+                </tr>
+              </ng-template>
+            </p-table>
+          </div>
+        </p-tabpanel>
+      </p-tabpanels>
+    </p-tabs>
   }
 </div>

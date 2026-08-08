@@ -84,6 +84,7 @@ export interface Producto extends Auditoria {
   tipo_producto: string;
   sku: string;
   codigo_barras: string | null;
+  codigo_sunat: string|null;
   descripcion_corta: string;
   descripcion_legal: string;
   descripcion_compra: string;
