@@ -73,16 +73,23 @@ export class ProductoForm implements OnInit {
   readonly subCategorias = signal<SubCategoria[]>([]);
   readonly presentaciones = signal<Presentacion[]>([]);
 
+  /** Claves del encadenamiento. Van como señales y no como lectura directa de
+   *  `form` porque un `computed` solo se recalcula cuando cambia una señal: si
+   *  filtrara por `this.form.familia_id` quedaría cacheado en la lista vacía. */
+  private readonly familiaSel = signal('');
+  private readonly subFamiliaSel = signal('');
+  private readonly categoriaSel = signal('');
+
   /** Las listas se encadenan: al elegir familia solo se ofrecen sus sub
    *  familias, y así hasta la sub categoría. Evita combinaciones imposibles. */
   readonly subFamiliasDeLaFamilia = computed(() =>
-    this.subFamilias().filter((sf) => sf.familia_id === this.form.familia_id),
+    this.subFamilias().filter((sf) => sf.familia_id === this.familiaSel()),
   );
   readonly categoriasDeLaSubFamilia = computed(() =>
-    this.categorias().filter((c) => c.sub_familia_id === this.form.sub_familia_id),
+    this.categorias().filter((c) => c.sub_familia_id === this.subFamiliaSel()),
   );
   readonly subCategoriasDeLaCategoria = computed(() =>
-    this.subCategorias().filter((sc) => sc.categoria_id === this.form.categoria_id),
+    this.subCategorias().filter((sc) => sc.categoria_id === this.categoriaSel()),
   );
 
   form: ProductoCreate = this.formVacio();
@@ -95,7 +102,7 @@ export class ProductoForm implements OnInit {
 
   private formVacio(): ProductoCreate {
     return {
-      tipo_producto: 'bien',
+      tipo_producto: 'terminado',
       sku: '',
       codigo_barras: null,
       descripcion_corta: '',
@@ -138,6 +145,9 @@ export class ProductoForm implements OnInit {
           sub_categoria_id: p.sub_categoria_id,
           presentacion_id: p.presentacion_id,
         };
+        this.familiaSel.set(p.familia_id);
+        this.subFamiliaSel.set(p.sub_familia_id);
+        this.categoriaSel.set(p.categoria_id);
         this.cargando.set(false);
       },
       error: (e: AppError) => {
@@ -150,17 +160,23 @@ export class ProductoForm implements OnInit {
   /** Al cambiar un nivel se limpian los de abajo: si no, quedaría una sub
    *  familia que ya no pertenece a la familia elegida. */
   alCambiarFamilia(): void {
+    this.familiaSel.set(this.form.familia_id);
     this.form.sub_familia_id = '';
     this.form.categoria_id = '';
     this.form.sub_categoria_id = null;
+    this.subFamiliaSel.set('');
+    this.categoriaSel.set('');
   }
 
   alCambiarSubFamilia(): void {
+    this.subFamiliaSel.set(this.form.sub_familia_id);
     this.form.categoria_id = '';
     this.form.sub_categoria_id = null;
+    this.categoriaSel.set('');
   }
 
   alCambiarCategoria(): void {
+    this.categoriaSel.set(this.form.categoria_id);
     this.form.sub_categoria_id = null;
   }
 
