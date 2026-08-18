@@ -173,16 +173,28 @@ export class EmpresaForm implements OnInit {
     });
   }
 
-  /** SUNAT responde "SI"/"NO" en los indicadores de agente. */
-  esSi(valor: string | null): boolean {
-    return (valor ?? '').trim().toUpperCase() === 'SI';
+  /** Sin ubigeo el servidor corta con un 502: la columna es obligatoria y no
+   *  hay de dónde sacarlo. Mejor no ofrecer el botón que mandar el alta a
+   *  fallar. */
+  get puedeCrear(): boolean {
+    const c = this.consulta();
+    return !!c && !!c.ubigeo;
+  }
+
+  /** Calle, distrito, provincia y departamento en una línea, como la arma el
+   *  servidor al dar de alta. La consulta los devuelve por separado. */
+  direccionCompleta(c: ConsultaRuc): string {
+    const partes = [c.direccion, c.distrito, c.provincia, c.departamento];
+    return partes.filter((p) => p && p.trim()).join(', ') || '—';
   }
 
   crear(): void {
     const datos = this.consulta();
     if (!datos || this.guardando()) return;
     this.guardando.set(true);
-    this.svc.crearDesdeRuc(datos.ruc, this.esProveedor).subscribe({
+    // `numero_documento` y no `ruc`: así se llama el campo en la respuesta de
+    // la consulta. Con el nombre viejo el RUC viajaba `undefined` en la URL.
+    this.svc.crearDesdeRuc(datos.numero_documento, this.esProveedor).subscribe({
       next: (e) => {
         this.guardando.set(false);
         this.msg.add({ severity: 'success', summary: 'Empresa creada', life: 2500 });

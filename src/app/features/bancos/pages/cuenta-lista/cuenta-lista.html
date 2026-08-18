@@ -1,0 +1,200 @@
+<div class="space-y-5">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">
+        Cuentas bancarias
+      </h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        Dónde cobra y paga cada empresa
+      </p>
+    </div>
+    <p-button label="Nueva cuenta" icon="pi pi-plus" (onClick)="nuevo()" />
+  </div>
+
+  <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-4">
+    <div class="flex flex-wrap gap-4 items-end">
+      <div class="flex flex-col gap-1 flex-1 min-w-48">
+        <label class="text-xs font-medium text-slate-500">Buscar</label>
+        <p-iconfield>
+          <p-inputicon styleClass="pi pi-search" />
+          <input
+            pInputText
+            [ngModel]="busqueda()"
+            (ngModelChange)="busqueda.set($event)"
+            placeholder="Número, banco o empresa..."
+            class="w-full"
+          />
+        </p-iconfield>
+      </div>
+      <div class="flex flex-col gap-1 w-64">
+        <label class="text-xs font-medium text-slate-500">Empresa</label>
+        <p-select
+          [ngModel]="empresaFiltro()"
+          (ngModelChange)="empresaFiltro.set($event)"
+          [options]="empresas()"
+          optionLabel="razon_social"
+          optionValue="id"
+          placeholder="Todas"
+          [filter]="true"
+          filterBy="razon_social,ruc"
+          [showClear]="true"
+          appendTo="body"
+          styleClass="w-full"
+        />
+      </div>
+      <div class="flex flex-col gap-1 w-56">
+        <label class="text-xs font-medium text-slate-500">Banco</label>
+        <p-select
+          [ngModel]="bancoFiltro()"
+          (ngModelChange)="bancoFiltro.set($event)"
+          [options]="bancos()"
+          optionLabel="razon_social"
+          optionValue="id"
+          placeholder="Todos"
+          [showClear]="true"
+          appendTo="body"
+          styleClass="w-full"
+        />
+      </div>
+      <div class="flex items-center gap-2 pb-1">
+        <p-toggleswitch [ngModel]="verInactivos()" (ngModelChange)="alternarInactivos()" />
+        <span class="text-sm text-slate-600 dark:text-slate-300">Ver inactivas</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border overflow-hidden">
+    <p-table [value]="filtrados()" [loading]="cargando()" styleClass="p-datatable-sm">
+      <ng-template pTemplate="header">
+        <tr>
+          <th class="w-48">Número</th>
+          <th>Empresa</th>
+          <th class="w-48">Banco</th>
+          <th class="w-40">Tipo</th>
+          <th class="w-24 text-center">Moneda</th>
+          <th class="w-28 text-center">Estado</th>
+          <th class="w-32 text-center">Acciones</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-c>
+        <tr>
+          <td class="font-mono text-sm font-medium">{{ c.numero_cuenta }}</td>
+          <td>{{ nombreEmpresa().get(c.empresa_id) || '—' }}</td>
+          <td>{{ nombreBanco().get(c.banco_id) || '—' }}</td>
+          <td class="text-sm text-slate-600 dark:text-slate-300">
+            {{ nombreTipo().get(c.tipo_cuenta_id) || '—' }}
+          </td>
+          <td class="text-center">
+            <p-tag [value]="c.moneda" severity="info" />
+          </td>
+          <td class="text-center">
+            @if (c.is_active) {
+              <p-tag value="Activa" severity="success" />
+            } @else {
+              <p-tag value="Inactiva" severity="secondary" />
+            }
+          </td>
+          <td class="text-center whitespace-nowrap">
+            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="editar(c)" />
+            @if (c.is_active) {
+              <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="darDeBaja(c)" />
+            }
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="7" class="text-center text-slate-400 py-10">
+            No hay cuentas que mostrar
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>
+
+<p-dialog
+  [visible]="dialogoAbierto()"
+  (visibleChange)="dialogoAbierto.set($event)"
+  [modal]="true"
+  [style]="{ width: '34rem' }"
+  [header]="editando() ? 'Editar cuenta' : 'Nueva cuenta'"
+>
+  <div class="space-y-4 pt-2">
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium text-slate-500">Empresa *</label>
+      <p-select
+        [(ngModel)]="form.empresa_id"
+        [options]="empresas()"
+        optionLabel="razon_social"
+        optionValue="id"
+        placeholder="Seleccione..."
+        [filter]="true"
+        filterBy="razon_social,ruc"
+        appendTo="body"
+        styleClass="w-full"
+      />
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-slate-500">Banco *</label>
+        <p-select
+          [(ngModel)]="form.banco_id"
+          [options]="bancos()"
+          optionLabel="razon_social"
+          optionValue="id"
+          placeholder="Seleccione..."
+          [filter]="true"
+          appendTo="body"
+          styleClass="w-full"
+        />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-slate-500">Tipo de cuenta *</label>
+        <p-select
+          [(ngModel)]="form.tipo_cuenta_id"
+          [options]="tipos()"
+          optionLabel="descripcion"
+          optionValue="id"
+          placeholder="Seleccione..."
+          appendTo="body"
+          styleClass="w-full"
+        />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-slate-500">Número de cuenta *</label>
+        <input
+          pInputText
+          [(ngModel)]="form.numero_cuenta"
+          maxlength="20"
+          class="w-full font-mono"
+        />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-slate-500">Moneda *</label>
+        <p-select
+          [(ngModel)]="form.moneda"
+          [options]="monedas"
+          optionLabel="label"
+          optionValue="value"
+          appendTo="body"
+          styleClass="w-full"
+        />
+      </div>
+    </div>
+  </div>
+  <ng-template pTemplate="footer">
+    <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="dialogoAbierto.set(false)" />
+    <p-button
+      [label]="editando() ? 'Guardar' : 'Crear'"
+      icon="pi pi-check"
+      [loading]="guardando()"
+      [disabled]="!valido"
+      (onClick)="guardar()"
+    />
+  </ng-template>
+</p-dialog>

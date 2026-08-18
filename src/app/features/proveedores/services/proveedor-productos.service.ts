@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 import { ApiClient } from '../../../core/http/api-client';
+import { Pagina } from '../../productos/services/catalogo.service';
 import {
   AsignacionProducto,
   ProductoDelProveedor,
@@ -21,7 +22,9 @@ export class ProveedorProductoService {
 
   /** Catálogo de un proveedor, ya ordenado por tiempo de atención. */
   productosDe(empresaId: string): Observable<ProductoDelProveedor[]> {
-    return this.api.get<ProductoDelProveedor[]>(`empresas/${empresaId}/productos`);
+    return this.api
+      .get<Pagina<ProductoDelProveedor>>(`empresas/${empresaId}/productos`)
+      .pipe(map((pagina) => pagina.items));
   }
 
   /** Asigna un producto o corrige su plazo: el endpoint es idempotente y
@@ -57,7 +60,9 @@ export class ProveedorProductoService {
 
   /** Quiénes proveen un producto, del más rápido al más lento. */
   proveedoresDe(productoId: string): Observable<ProveedorDelProducto[]> {
-    return this.api.get<ProveedorDelProducto[]>(`productos/${productoId}/proveedores`);
+    return this.api
+      .get<Pagina<ProveedorDelProducto>>(`productos/${productoId}/proveedores`)
+      .pipe(map((pagina) => pagina.items));
   }
 
   /** El de menor tiempo de atención, o `null` si nadie lo provee. */

@@ -1,0 +1,216 @@
+<div class="space-y-5">
+  <div class="flex items-start justify-between gap-3">
+    <div class="flex items-start gap-3">
+      <p-button icon="pi pi-arrow-left" severity="secondary" [text]="true" (onClick)="volver()" />
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">
+          {{ esNuevo() ? 'Nuevo' : 'Editar' }} {{ tipo().singular }}
+        </h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ tipo().descripcion }}</p>
+      </div>
+    </div>
+    <p-button
+      [label]="esNuevo() ? 'Crear' : 'Guardar'"
+      icon="pi pi-check"
+      [loading]="guardando()"
+      [disabled]="!valido"
+      (onClick)="guardar()"
+    />
+  </div>
+
+  <!-- Cabecera -->
+  <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-4">
+    <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Datos del documento</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-slate-500">{{ tipo().origen.etiqueta }} *</label>
+        <p-select
+          [(ngModel)]="origenId"
+          [options]="origenLista()"
+          optionLabel="etiqueta"
+          optionValue="id"
+          [placeholder]="'Seleccione ' + tipo().origen.etiqueta.toLowerCase()"
+          [filter]="true"
+          filterBy="etiqueta"
+          appendTo="body"
+          styleClass="w-full"
+        />
+        @if (filtraPorAprobado()) {
+          @if (sinAprobados()) {
+            <span class="text-[11px] text-amber-600 dark:text-amber-400">
+              No hay {{ tipo().origen.etiqueta.toLowerCase() }} aprobado. La cadena
+              solo avanza desde un documento aprobado.
+            </span>
+          } @else {
+            <span class="text-[11px] text-slate-400">Solo se listan los aprobados</span>
+          }
+        }
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-slate-500">Estado *</label>
+        <p-select
+          [(ngModel)]="estadoId"
+          [options]="estadosLista()"
+          optionLabel="descripcion"
+          optionValue="id"
+          placeholder="Seleccione el estado"
+          appendTo="body"
+          styleClass="w-full"
+        />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-medium text-slate-500">Fecha *</label>
+        <p-datepicker
+          [(ngModel)]="fecha"
+          dateFormat="dd/mm/yy"
+          appendTo="body"
+          styleClass="w-full"
+        />
+      </div>
+
+      @if (tipo().conProveedor) {
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Proveedor *</label>
+          <p-select
+            [(ngModel)]="proveedorId"
+            [options]="proveedores()"
+            optionLabel="razon_social"
+            optionValue="id"
+            placeholder="Seleccione el proveedor"
+            [filter]="true"
+            filterBy="razon_social,ruc"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Tiempo de atención (días)</label>
+          <p-inputnumber [(ngModel)]="tiempoAtencion" [min]="0" [max]="365" styleClass="w-full" />
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Detalle -->
+  <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border overflow-hidden">
+    <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-200 dark:border-surface-border">
+      <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+        Líneas del documento
+      </h2>
+      <p-button label="Agregar línea" icon="pi pi-plus" size="small" (onClick)="agregarLinea()" />
+    </div>
+
+    <p-table [value]="lineas()" [loading]="cargando()" styleClass="p-datatable-sm">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Producto</th>
+          <th class="w-44">Unidad</th>
+          <th class="w-32 text-right">Cantidad</th>
+          @if (tipo().conPrecio) {
+            <th class="w-36 text-right">Precio unitario</th>
+            <th class="w-32 text-right">Importe</th>
+          }
+          <th class="w-16"></th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-linea let-i="rowIndex">
+        <tr>
+          <td>
+            <p-select
+              [(ngModel)]="linea.producto_id"
+              (ngModelChange)="alCambiarProducto(linea)"
+              [options]="productosLista()"
+              optionLabel="descripcion_corta"
+              optionValue="id"
+              placeholder="Seleccione"
+              [filter]="true"
+              filterBy="descripcion_corta,sku"
+              appendTo="body"
+              styleClass="w-full"
+            />
+          </td>
+          <td>
+            <p-select
+              [(ngModel)]="linea.unidad_medida_id"
+              [options]="unidadesLista()"
+              optionLabel="descripcion"
+              optionValue="id"
+              placeholder="Unidad"
+              [filter]="true"
+              filterBy="descripcion"
+              appendTo="body"
+              styleClass="w-full"
+            />
+          </td>
+          <td>
+            <p-inputnumber
+              [(ngModel)]="linea.cantidad"
+              [min]="tipo().cantidadMinima"
+              styleClass="w-full"
+            />
+          </td>
+          @if (tipo().conPrecio) {
+            <td>
+              <p-inputnumber
+                [(ngModel)]="linea.precio_unitario"
+                [min]="0"
+                mode="decimal"
+                [minFractionDigits]="2"
+                [maxFractionDigits]="2"
+                styleClass="w-full"
+              />
+            </td>
+            <td class="text-right font-mono text-sm">
+              {{ (linea.cantidad || 0) * (linea.precio_unitario || 0) | number: '1.2-2' }}
+            </td>
+          }
+          <td class="text-center">
+            <p-button
+              icon="pi pi-trash"
+              severity="danger"
+              [text]="true"
+              (onClick)="quitarLinea(i)"
+            />
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td [attr.colspan]="tipo().conPrecio ? 6 : 4" class="text-center text-slate-400 py-10">
+            Sin líneas. Agregue al menos una para poder guardar.
+          </td>
+        </tr>
+      </ng-template>
+
+      @if (tipo().conPrecio && lineas().length) {
+        <ng-template pTemplate="footer">
+          <tr>
+            <td colspan="4" class="text-right font-semibold">Total</td>
+            <td class="text-right font-mono font-semibold">{{ total() | number: '1.2-2' }}</td>
+            <td></td>
+          </tr>
+        </ng-template>
+      }
+    </p-table>
+  </div>
+
+  @if (errorCabecera || errorLineas) {
+    <div class="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+      <i class="pi pi-exclamation-triangle text-amber-600 dark:text-amber-400 mt-0.5"></i>
+      <p class="text-sm text-amber-800 dark:text-amber-200">
+        {{ errorCabecera || errorLineas }}
+      </p>
+    </div>
+  }
+
+  @if (tipo().conPrecio) {
+    <p class="text-xs text-slate-500 dark:text-slate-400">
+      El importe de cada línea y el total del documento los calcula el servidor a partir de
+      la cantidad y el precio unitario.
+    </p>
+  }
+</div>

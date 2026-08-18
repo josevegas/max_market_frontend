@@ -53,17 +53,53 @@ export interface EmpresaUpdate {
 }
 
 /** Respuesta de `GET /empresas/ruc/{ruc}`: datos de SUNAT ya normalizados y
- *  sin guardar nada. Los indicadores de agente llegan como "SI"/"NO". */
+ *  sin guardar nada.
+ *
+ *  Los nombres son los del `ConsultaRucResponse` del backend, que no coinciden
+ *  con los de `Empresa`: acá el RUC es `numero_documento` y el ubigeo es
+ *  `ubigeo`, porque son los datos crudos del proveedor de consultas, todavía
+ *  sin mapear a la tabla.
+ *
+ *  La condición de agente **no** viaja acá: sale del padrón oficial de SUNAT
+ *  (`/padron-agentes`), y el alta la resuelve el servidor. */
 export interface ConsultaRuc {
-  ruc: string;
+  numero_documento: string;
   razon_social: string;
-  direccion_completa: string | null;
-  ubigeo_sunat: string | null;
-  es_agente_de_retencion: string | null;
-  es_agente_de_percepcion: string | null;
+  direccion: string | null;
+  distrito: string | null;
+  provincia: string | null;
+  departamento: string | null;
+  ubigeo: string | null;
   estado: string | null;
   condicion: string | null;
   crudo: Record<string, unknown>;
+}
+
+// ---- Padrón de agentes ----
+
+/** Respuesta de `GET /padron-agentes/estado`.
+ *
+ *  El padrón es la fuente oficial de `es_ag_retencion` y `es_ag_percepcion`:
+ *  la consulta de RUC no informa esos datos. Mientras esté vacío, toda empresa
+ *  nueva se registra como no agente, así que saber cuándo se sincronizó por
+ *  última vez es parte de poder confiar en la ficha. */
+export interface EstadoPadron {
+  tiene_datos: boolean;
+  agentes_retencion: number;
+  agentes_percepcion: number;
+  ultima_sincronizacion: string | null;
+  ultima_ok: boolean | null;
+  ultimo_detalle: string | null;
+}
+
+/** Respuesta de `POST /padron-agentes/sincronizar`: qué hizo la corrida. */
+export interface ResumenSincronizacion {
+  ok: boolean;
+  filas_retencion: number;
+  filas_percepcion: number;
+  /** Empresas cuya condición de agente cambió al reconciliar. */
+  empresas_actualizadas: number;
+  detalle: string | null;
 }
 
 // ---- Productos del proveedor ----

@@ -5,32 +5,55 @@
   [class.lg:w-16]="!abierto()"
   [class.overflow-hidden]="!abierto()"
 >
-  <nav class="p-3 space-y-6">
+  <nav class="p-3 space-y-4">
     @for (grupo of menu; track grupo.titulo) {
       <div>
         @if (abierto()) {
-          <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            {{ grupo.titulo }}
-          </p>
+          <!-- La cabecera es el control de plegado. Botón y no un div con
+               click: se llega con Tab y responde a Enter y espacio sin tener
+               que reimplementarlo. -->
+          <button
+            type="button"
+            (click)="alternarGrupo(grupo.titulo)"
+            [attr.aria-expanded]="desplegado(grupo)"
+            class="w-full flex items-center gap-2 px-3 py-1.5 mb-1 rounded-lg text-[11px] font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+          >
+            <i
+              class="pi pi-chevron-down text-[10px] shrink-0 transition-transform duration-200"
+              [class.-rotate-90]="!desplegado(grupo)"
+            ></i>
+            <span class="truncate">{{ grupo.titulo }}</span>
+            @if (!desplegado(grupo) && tieneRutaActiva(grupo)) {
+              <!-- Plegado y con la pantalla actual adentro: sin esta marca el
+                   usuario pierde de vista dónde está parado. -->
+              <span
+                class="ml-auto w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0"
+                title="Aquí está la pantalla actual"
+              ></span>
+            }
+          </button>
         }
-        <ul class="space-y-1">
-          @for (item of grupo.items; track item.ruta) {
-            <li>
-              <a
-                [routerLink]="item.ruta"
-                routerLinkActive="bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 font-medium"
-                (click)="linkClick.emit()"
-                class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-2 transition-colors"
-                [title]="item.etiqueta"
-              >
-                <i class="pi {{ item.icono }} text-base shrink-0"></i>
-                @if (abierto()) {
-                  <span class="truncate">{{ item.etiqueta }}</span>
-                }
-              </a>
-            </li>
-          }
-        </ul>
+
+        @if (desplegado(grupo)) {
+          <ul class="space-y-1">
+            @for (item of grupo.items; track item.ruta) {
+              <li>
+                <a
+                  [routerLink]="item.ruta"
+                  routerLinkActive="bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 font-medium"
+                  (click)="linkClick.emit()"
+                  class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-surface-2 transition-colors"
+                  [title]="item.etiqueta"
+                >
+                  <i class="pi {{ item.icono }} text-base shrink-0"></i>
+                  @if (abierto()) {
+                    <span class="truncate">{{ item.etiqueta }}</span>
+                  }
+                </a>
+              </li>
+            }
+          </ul>
+        }
       </div>
     }
   </nav>

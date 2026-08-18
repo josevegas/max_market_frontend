@@ -49,7 +49,7 @@
 
       <p-tabpanels class="!bg-transparent !px-0">
         <p-tabpanel value="general">
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
       <!-- Identificación -->
       <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
         <div class="flex items-center gap-2 mb-1">
@@ -87,11 +87,59 @@
             [options]="presentaciones()"
             optionLabel="descripcion"
             optionValue="id"
-            placeholder="Sin presentación"
-            [showClear]="true"
+            placeholder="Seleccione..."
             appendTo="body"
             styleClass="w-full"
           />
+        </div>
+      </div>
+
+      <!-- Unidades y marca -->
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="pi pi-calculator text-brand-600"></i>
+          <h3 class="font-semibold text-slate-800 dark:text-slate-100">Unidades y marca</h3>
+        </div>
+        <p class="text-xs text-slate-400 -mt-2">
+          El proveedor factura en una unidad y el market vende en otra
+        </p>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Unidad de compra *</label>
+          <p-select
+            [(ngModel)]="form.unidad_compra"
+            [options]="unidades()"
+            optionLabel="descripcion"
+            optionValue="id"
+            placeholder="Seleccione..."
+            [filter]="true"
+            filterBy="codigo,descripcion"
+            appendTo="body"
+            styleClass="w-full"
+          />
+          <span class="text-[11px] text-slate-400">En la que llega del proveedor</span>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Unidad de venta *</label>
+          <p-select
+            [(ngModel)]="form.unidad_venta"
+            [options]="unidades()"
+            optionLabel="descripcion"
+            optionValue="id"
+            placeholder="Seleccione..."
+            [filter]="true"
+            filterBy="codigo,descripcion"
+            appendTo="body"
+            styleClass="w-full"
+          />
+          <span class="text-[11px] text-slate-400">En la que se despacha en tienda</span>
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Marca / fabricante</label>
+          <input pInputText [(ngModel)]="form.marca_fabricante" maxlength="25" class="w-full" />
+          <span class="text-[11px] text-slate-400">Vacío en granel y marca propia</span>
         </div>
       </div>
 

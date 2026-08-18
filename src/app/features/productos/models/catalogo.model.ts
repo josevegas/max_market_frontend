@@ -94,6 +94,12 @@ export interface Producto extends Auditoria {
   categoria_id: string;
   sub_categoria_id: string | null;
   presentacion_id: string | null;
+  /** Nulo en los productos a granel y de marca propia. */
+  marca_fabricante: string | null;
+  /** Unidades de medida, no textos: el proveedor factura en una y el market
+   * vende en otra, y sin las dos no hay contra qué convertir. */
+  unidad_compra: string;
+  unidad_venta: string;
 }
 export interface ProductoCreate {
   tipo_producto: string;
@@ -107,7 +113,12 @@ export interface ProductoCreate {
   sub_familia_id: string;
   categoria_id: string;
   sub_categoria_id?: string | null;
-  presentacion_id?: string | null;
+  /** Obligatoria en el alta: la columna es NOT NULL. En las respuestas sigue
+   * pudiendo venir nula por los productos anteriores a que se exigiera. */
+  presentacion_id: string;
+  marca_fabricante?: string | null;
+  unidad_compra: string;
+  unidad_venta: string;
 }
 export type ProductoUpdate = Partial<ProductoCreate>;
 

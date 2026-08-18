@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 import { ApiClient } from '../../../core/http/api-client';
 import {
@@ -24,7 +24,7 @@ import {
   SubFamiliaCreate,
   SubFamiliaUpdate,
 } from '../models/catalogo.model';
-import { RecursoService } from './catalogo.service';
+import { Pagina, RecursoService } from './catalogo.service';
 
 @Injectable({ providedIn: 'root' })
 export class FamiliaService extends RecursoService<Familia, FamiliaCreate, FamiliaUpdate> {
@@ -77,7 +77,9 @@ export class ProductoService extends RecursoService<Producto, ProductoCreate, Pr
   }
 
   precios(productoId: string): Observable<PrecioProducto[]> {
-    return this.api.get<PrecioProducto[]>(`${this.ruta}/${productoId}/precios`);
+    return this.api
+      .get<Pagina<PrecioProducto>>(`${this.ruta}/${productoId}/precios`)
+      .pipe(map((pagina) => pagina.items));
   }
 
   precioVigente(productoId: string): Observable<PrecioProducto> {

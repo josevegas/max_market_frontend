@@ -1,0 +1,266 @@
+<div class="space-y-5">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">
+        {{ esNuevo() ? 'Nueva recepción' : 'Recepción' }}
+      </h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        @if (esNuevo()) {
+          Al registrarla, la guía queda recepcionada y la cadena entera pasa a atendida
+        } @else {
+          <span class="font-mono">{{ recepcionId()?.slice(0, 8) }}</span>
+          @if (estadoId) {
+            · {{ nombreEstado().get(estadoId) }}
+          }
+        }
+      </p>
+    </div>
+    <div class="flex gap-2 shrink-0">
+      <p-button label="Volver" icon="pi pi-arrow-left" severity="secondary" [outlined]="true" (onClick)="volver()" />
+      <p-button
+        [label]="esNuevo() ? 'Registrar' : 'Guardar'"
+        icon="pi pi-check"
+        [loading]="guardando()"
+        [disabled]="!valido"
+        (onClick)="guardar()"
+      />
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <p-skeleton height="20rem" />
+  } @else {
+    <!-- Cabecera -->
+    <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-4">
+      <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">
+        Datos de la recepción
+      </h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Recibir contra *</label>
+          <p-select
+            [(ngModel)]="origen"
+            (ngModelChange)="alCambiarOrigen()"
+            [options]="origenes"
+            optionLabel="label"
+            optionValue="value"
+            [disabled]="!esNuevo()"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+
+        @if (origen === 'guia') {
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium text-slate-500">Guía de remisión *</label>
+            <p-select
+              [(ngModel)]="guiaId"
+              [options]="guiasDisponibles()"
+              optionLabel="etiqueta"
+              optionValue="id"
+              placeholder="Seleccione la guía"
+              [filter]="true"
+              filterBy="etiqueta"
+              [disabled]="!esNuevo()"
+              appendTo="body"
+              styleClass="w-full"
+            />
+            <span class="text-[11px] text-slate-400">Solo las que aún no se recibieron</span>
+          </div>
+        } @else {
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium text-slate-500">Orden de compra *</label>
+            <p-select
+              [(ngModel)]="ordenId"
+              [options]="ordenesLista()"
+              optionLabel="etiqueta"
+              optionValue="id"
+              placeholder="Seleccione la orden"
+              [filter]="true"
+              filterBy="etiqueta"
+              [disabled]="!esNuevo()"
+              appendTo="body"
+              styleClass="w-full"
+            />
+            <span class="text-[11px] text-slate-400">
+              Para cuando el proveedor entrega sin guía previa
+            </span>
+          </div>
+        }
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Almacén que recibe *</label>
+          <p-select
+            [(ngModel)]="almacenId"
+            [options]="almacenes()"
+            optionLabel="nombre"
+            optionValue="id"
+            placeholder="Seleccione el almacén"
+            [filter]="true"
+            filterBy="nombre,codigo"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Fecha *</label>
+          <p-datepicker
+            [(ngModel)]="fecha"
+            dateFormat="dd/mm/yy"
+            appendTo="body"
+            styleClass="w-full"
+          />
+        </div>
+
+        @if (!esNuevo()) {
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium text-slate-500">Estado</label>
+            <p-select
+              [(ngModel)]="estadoId"
+              [options]="estados()"
+              optionLabel="descripcion"
+              optionValue="id"
+              placeholder="Sin estado"
+              appendTo="body"
+              styleClass="w-full"
+            />
+          </div>
+        }
+
+        <div class="flex flex-col gap-1 sm:col-span-2 lg:col-span-3">
+          <label class="text-xs font-medium text-slate-500">Observaciones</label>
+          <input
+            pInputText
+            [(ngModel)]="observaciones"
+            maxlength="500"
+            placeholder="Qué no cuadró, quién entregó, condición de la mercadería..."
+            class="w-full"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Detalle -->
+    <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-4 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            Qué entró
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Esperado es lo que el papel declaraba; ingresado, lo que se aceptó
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <p-button
+            label="Traer líneas del origen"
+            icon="pi pi-download"
+            severity="secondary"
+            [outlined]="true"
+            [loading]="cargandoLineas()"
+            [disabled]="origen === 'guia' ? !guiaId : !ordenId"
+            (onClick)="proponerLineas()"
+          />
+          <p-button label="Agregar línea" icon="pi pi-plus" [outlined]="true" (onClick)="agregarLinea()" />
+        </div>
+      </div>
+
+      <p-table [value]="lineas()" styleClass="p-datatable-sm">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Producto</th>
+            <th class="w-40">Unidad</th>
+            <th class="w-28">Esperado</th>
+            <th class="w-28">Ingresado</th>
+            <th class="w-28">Devuelto</th>
+            <th class="w-32">Precio unit.</th>
+            <th class="w-36">Lote</th>
+            <th class="w-16"></th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-l let-i="rowIndex">
+          <tr>
+            <td>
+              <p-select
+                [(ngModel)]="l.producto_id"
+                [options]="productos()"
+                optionLabel="descripcion_corta"
+                optionValue="id"
+                placeholder="Seleccione..."
+                [filter]="true"
+                filterBy="sku,descripcion_corta"
+                appendTo="body"
+                styleClass="w-full"
+              />
+            </td>
+            <td>
+              <p-select
+                [(ngModel)]="l.unidad_medida_id"
+                [options]="unidades()"
+                optionLabel="codigo"
+                optionValue="id"
+                placeholder="Unidad"
+                appendTo="body"
+                styleClass="w-full"
+              />
+            </td>
+            <td>
+              <p-inputnumber [(ngModel)]="l.cantidad_esperada" [min]="0" styleClass="w-full" />
+            </td>
+            <td>
+              <p-inputnumber [(ngModel)]="l.cantidad_ingresada" [min]="0" styleClass="w-full" />
+            </td>
+            <td>
+              <p-inputnumber [(ngModel)]="l.cantidad_devuelta" [min]="0" styleClass="w-full" />
+            </td>
+            <td>
+              <p-inputnumber
+                [(ngModel)]="l.precio_unitario"
+                [min]="0"
+                mode="decimal"
+                [minFractionDigits]="2"
+                [maxFractionDigits]="2"
+                styleClass="w-full"
+              />
+            </td>
+            <td>
+              <input pInputText [(ngModel)]="l.codigo_lote" maxlength="30" class="w-full font-mono" />
+            </td>
+            <td class="text-center">
+              <p-button icon="pi pi-times" severity="danger" [text]="true" (onClick)="quitarLinea(i)" />
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="8" class="text-center text-slate-400 py-8">
+              Todavía no hay líneas. Traiga las del documento de origen o agréguelas a mano.
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+
+      <div class="flex flex-wrap justify-end gap-6 pt-2 border-t border-slate-200 dark:border-surface-border">
+        <div class="text-right">
+          <p class="text-xs text-slate-500">Unidades ingresadas</p>
+          <p class="text-lg font-semibold text-slate-800 dark:text-slate-100">
+            {{ totalIngresado() }}
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-slate-500">Importe recibido</p>
+          <p class="text-lg font-semibold text-slate-800 dark:text-slate-100">
+            {{ totalImporte() | number: '1.2-2' }}
+          </p>
+        </div>
+      </div>
+
+      @if (errorCabecera || errorLineas) {
+        <p class="text-xs text-amber-600 dark:text-amber-400 text-right">
+          {{ errorCabecera || errorLineas }}
+        </p>
+      }
+    </div>
+  }
+</div>

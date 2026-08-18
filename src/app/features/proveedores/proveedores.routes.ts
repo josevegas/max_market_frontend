@@ -21,4 +21,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/empresa-form/empresa-form').then((m) => m.EmpresaForm),
   },
+  // El padrón vive acá porque es de donde sale la condición de agente de cada
+  // empresa, aunque no sea un CRUD como el resto del módulo.
+  {
+    path: 'padron-agentes',
+    loadComponent: () =>
+      import('./pages/padron-estado/padron-estado').then((m) => m.PadronEstado),
+  },
 ];

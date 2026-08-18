@@ -19,7 +19,7 @@
           label="Crear"
           icon="pi pi-check"
           [loading]="guardando()"
-          [disabled]="!consulta()"
+          [disabled]="!puedeCrear"
           (onClick)="crear()"
         />
       } @else {
@@ -82,12 +82,12 @@
             </div>
             <div>
               <p class="text-xs text-slate-500">Dirección</p>
-              <p class="text-slate-700 dark:text-slate-200">{{ c.direccion_completa || '—' }}</p>
+              <p class="text-slate-700 dark:text-slate-200">{{ direccionCompleta(c) }}</p>
             </div>
             <div class="flex gap-6">
               <div>
                 <p class="text-xs text-slate-500">Ubigeo</p>
-                <p class="font-mono text-slate-700 dark:text-slate-200">{{ c.ubigeo_sunat || '—' }}</p>
+                <p class="font-mono text-slate-700 dark:text-slate-200">{{ c.ubigeo || '—' }}</p>
               </div>
               <div>
                 <p class="text-xs text-slate-500">Estado</p>
@@ -98,15 +98,11 @@
                 <p class="text-slate-700 dark:text-slate-200">{{ c.condicion || '—' }}</p>
               </div>
             </div>
-            <div class="flex flex-wrap gap-2 pt-1">
-              @if (esSi(c.es_agente_de_retencion)) {
-                <p-tag value="Agente de retención" severity="warn" />
-              }
-              @if (esSi(c.es_agente_de_percepcion)) {
-                <p-tag value="Agente de percepción" severity="warn" />
-              }
-            </div>
-            @if (!c.ubigeo_sunat) {
+            <p class="text-xs text-slate-400 pt-1">
+              La condición de agente de retención y percepción no la informa esta
+              consulta: sale del padrón oficial y el servidor la resuelve al crear.
+            </p>
+            @if (!c.ubigeo) {
               <p class="text-xs text-red-600 dark:text-red-400">
                 SUNAT no devolvió el ubigeo; el alta será rechazada por el servidor.
               </p>

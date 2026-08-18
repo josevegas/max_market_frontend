@@ -12,6 +12,8 @@ import { TabsModule } from 'primeng/tabs';
 import { TagModule } from 'primeng/tag';
 
 import { AppError } from '../../../../core/http/api-error';
+import { UnidadMedida } from '../../../almacenes/models/almacenes.model';
+import { UnidadMedidaService } from '../../../almacenes/services/almacenes.service';
 import { ProveedorDelProducto } from '../../../proveedores/models/catalogo.model';
 import { ProveedorProductoService } from '../../../proveedores/services/proveedor-productos.service';
 import {
@@ -62,6 +64,7 @@ export class ProductoForm implements OnInit {
   private readonly categoriaSvc = inject(CategoriaService);
   private readonly subCategoriaSvc = inject(SubCategoriaService);
   private readonly presentacionSvc = inject(PresentacionService);
+  private readonly unidadSvc = inject(UnidadMedidaService);
   private readonly asignacionSvc = inject(ProveedorProductoService);
   private readonly msg = inject(MessageService);
   private readonly router = inject(Router);
@@ -79,6 +82,7 @@ export class ProductoForm implements OnInit {
   readonly categorias = signal<Categoria[]>([]);
   readonly subCategorias = signal<SubCategoria[]>([]);
   readonly presentaciones = signal<Presentacion[]>([]);
+  readonly unidades = signal<UnidadMedida[]>([]);
 
   /** Claves del encadenamiento. Van como señales y no como lectura directa de
    *  `form` porque un `computed` solo se recalcula cuando cambia una señal: si
@@ -125,7 +129,10 @@ export class ProductoForm implements OnInit {
       sub_familia_id: '',
       categoria_id: '',
       sub_categoria_id: null,
-      presentacion_id: null,
+      presentacion_id: '',
+      marca_fabricante: null,
+      unidad_compra: '',
+      unidad_venta: '',
     };
   }
 
@@ -136,6 +143,7 @@ export class ProductoForm implements OnInit {
     this.categoriaSvc.listar(p).subscribe({ next: (x) => this.categorias.set(x) });
     this.subCategoriaSvc.listar(p).subscribe({ next: (x) => this.subCategorias.set(x) });
     this.presentacionSvc.listar(p).subscribe({ next: (x) => this.presentaciones.set(x) });
+    this.unidadSvc.listar(p).subscribe({ next: (x) => this.unidades.set(x) });
   }
 
   private cargar(id: string): void {
@@ -155,7 +163,12 @@ export class ProductoForm implements OnInit {
           sub_familia_id: p.sub_familia_id,
           categoria_id: p.categoria_id,
           sub_categoria_id: p.sub_categoria_id,
-          presentacion_id: p.presentacion_id,
+          // Los productos anteriores a que la presentación fuera obligatoria
+          // la traen nula; el selector arranca vacío y el guardado la exige.
+          presentacion_id: p.presentacion_id ?? '',
+          marca_fabricante: p.marca_fabricante,
+          unidad_compra: p.unidad_compra,
+          unidad_venta: p.unidad_venta,
         };
         this.familiaSel.set(p.familia_id);
         this.subFamiliaSel.set(p.sub_familia_id);
@@ -217,7 +230,12 @@ export class ProductoForm implements OnInit {
       f.descripcion_web.trim() &&
       f.familia_id &&
       f.sub_familia_id &&
-      f.categoria_id
+      f.categoria_id &&
+      // Los tres son NOT NULL en la API: sin ellos el alta vuelve como 422 y
+      // el usuario no tiene forma de saber qué campo faltó.
+      f.presentacion_id &&
+      f.unidad_compra &&
+      f.unidad_venta
     );
   }
 

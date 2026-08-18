@@ -1,0 +1,113 @@
+<div class="space-y-5">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">
+        Padrón de agentes
+      </h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        La fuente oficial de la condición de agente de retención y percepción
+      </p>
+    </div>
+    <div class="flex gap-2 shrink-0">
+      <p-button
+        label="Refrescar"
+        icon="pi pi-refresh"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="cargar()"
+      />
+      <p-button
+        label="Sincronizar con SUNAT"
+        icon="pi pi-cloud-download"
+        [loading]="sincronizando()"
+        (onClick)="sincronizar()"
+      />
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <p-skeleton height="14rem" />
+  } @else if (estado(); as e) {
+    @if (!e.tiene_datos) {
+      <div
+        class="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4 flex gap-3"
+      >
+        <i class="pi pi-exclamation-triangle text-amber-600 mt-0.5"></i>
+        <div class="text-sm text-amber-800 dark:text-amber-200">
+          <p class="font-semibold">El padrón está vacío</p>
+          <p class="mt-1">
+            Mientras no se sincronice, toda empresa nueva se registra como
+            <strong>no agente</strong>, aunque SUNAT diga lo contrario.
+          </p>
+        </div>
+      </div>
+    }
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5">
+        <p class="text-xs font-medium text-slate-500">Agentes de retención</p>
+        <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-1">
+          {{ e.agentes_retencion }}
+        </p>
+        <p class="text-xs text-slate-400 mt-1">RUC en el padrón</p>
+      </div>
+
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5">
+        <p class="text-xs font-medium text-slate-500">Agentes de percepción</p>
+        <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-1">
+          {{ e.agentes_percepcion }}
+        </p>
+        <p class="text-xs text-slate-400 mt-1">RUC en el padrón</p>
+      </div>
+
+      <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-3">
+        <div>
+          <p class="text-xs font-medium text-slate-500">Última sincronización</p>
+          <p class="text-sm font-medium text-slate-800 dark:text-slate-100 mt-1">
+            {{ fecha(e.ultima_sincronizacion) }}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          @if (e.ultima_ok === true) {
+            <p-tag value="Correcta" severity="success" />
+          } @else if (e.ultima_ok === false) {
+            <p-tag value="Con error" severity="danger" />
+          } @else {
+            <p-tag value="Sin corridas" severity="secondary" />
+          }
+        </div>
+        @if (e.ultimo_detalle) {
+          <p class="text-xs text-slate-500 dark:text-slate-400 break-words">
+            {{ e.ultimo_detalle }}
+          </p>
+        }
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5">
+      <div class="flex items-center gap-2 mb-2">
+        <i class="pi pi-info-circle text-brand-600"></i>
+        <h3 class="font-semibold text-slate-800 dark:text-slate-100">Cómo funciona</h3>
+      </div>
+      <ul class="text-sm text-slate-600 dark:text-slate-300 space-y-1.5 list-disc pl-5">
+        <li>
+          La consulta de RUC del alta <strong>no</strong> informa la condición de
+          agente: solo el padrón la tiene, y la percepción nunca llega por esa vía.
+        </li>
+        <li>
+          Al sincronizar se reemplaza el padrón guardado y se recalcula
+          <span class="font-mono text-xs">es_ag_retencion</span> y
+          <span class="font-mono text-xs">es_ag_percepcion</span> de todas las empresas.
+        </li>
+        <li>
+          El servidor la corre de forma periódica; este botón sirve para forzarla
+          y para sembrar el padrón la primera vez.
+        </li>
+      </ul>
+    </div>
+  } @else {
+    <p class="text-sm text-slate-400 py-10 text-center">
+      No se pudo leer el estado del padrón.
+    </p>
+  }
+</div>
