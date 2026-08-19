@@ -59,7 +59,7 @@
           @if (tipo().conPrecio) {
             <th class="w-32 text-right">Total</th>
           }
-          <th class="w-32 text-center">Acciones</th>
+          <th class="text-center" [class]="comparable() ? 'w-64' : 'w-32'">Acciones</th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-d>
@@ -81,6 +81,21 @@
             <td class="text-right font-mono text-sm">{{ d.monto_total }}</td>
           }
           <td class="text-center whitespace-nowrap">
+            @if (comparable()) {
+              <!-- Con etiqueta y no solo el ícono: es el paso previo a aprobar,
+                   no una acción secundaria, y como ícono suelto pasaba
+                   desapercibido entre editar y dar de baja. -->
+              <p-button
+                label="Comparar"
+                icon="pi pi-chart-bar"
+                severity="info"
+                [outlined]="true"
+                size="small"
+                pTooltip="Comparar con las otras cotizaciones del mismo pedido"
+                tooltipPosition="left"
+                (onClick)="comparar(d)"
+              />
+            }
             <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="editar(d)" />
             @if (d.is_active) {
               <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="darDeBaja(d)" />

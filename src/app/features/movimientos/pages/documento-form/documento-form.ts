@@ -9,7 +9,8 @@ import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
-import { forkJoin, of, switchMap } from 'rxjs';
+import { TagModule } from 'primeng/tag';
+import { Observable, forkJoin, map, of, switchMap } from 'rxjs';
 
 import { AppError } from '../../../../core/http/api-error';
 import { Almacen, UnidadMedida } from '../../../almacenes/models/almacenes.model';
@@ -19,7 +20,11 @@ import {
 } from '../../../almacenes/services/almacenes.service';
 import { Producto } from '../../../productos/models/catalogo.model';
 import { ProductoService } from '../../../productos/services/productos.service';
-import { CODIGO_APROBADO } from '../../models/codigos-estado';
+import {
+  CODIGO_APROBADO,
+  CODIGO_OBSERVADO,
+  CODIGO_RECHAZADO,
+} from '../../models/codigos-estado';
 import {
   DocumentoCabecera,
   DocumentoDetalle,
@@ -34,6 +39,50 @@ import {
   EstadoService,
   RegistroDocumentos,
 } from '../../services/movimientos.service';
+
+/** Lo que puede hacer quien revisa un documento ya guardado.
+ *
+ * Las tres son el mismo PATCH con distinto destino, así que se describen como
+ * datos y no como tres métodos que dirían lo mismo tres veces. El `codigo` es
+ * el del catálogo de estados; la `severidad` es la de PrimeNG.
+ */
+interface AccionEstado {
+  codigo: string;
+  etiqueta: string;
+  icono: string;
+  severidad: 'success' | 'danger' | 'warn';
+  /** Cómo se cuenta en el aviso de éxito: "Se aprobó el requerimiento". */
+  hecho: string;
+  /** Título de ese mismo aviso: "Documento aprobado". */
+  participio: string;
+}
+
+const ACCIONES_ESTADO: readonly AccionEstado[] = [
+  {
+    codigo: CODIGO_APROBADO,
+    etiqueta: 'Aprobar',
+    icono: 'pi pi-check-circle',
+    severidad: 'success',
+    hecho: 'aprobó',
+    participio: 'aprobado',
+  },
+  {
+    codigo: CODIGO_OBSERVADO,
+    etiqueta: 'Observar',
+    icono: 'pi pi-exclamation-circle',
+    severidad: 'warn',
+    hecho: 'observó',
+    participio: 'observado',
+  },
+  {
+    codigo: CODIGO_RECHAZADO,
+    etiqueta: 'Rechazar',
+    icono: 'pi pi-times-circle',
+    severidad: 'danger',
+    hecho: 'rechazó',
+    participio: 'rechazado',
+  },
+];
 
 /** Editor de cualquiera de los cinco documentos: cabecera y líneas juntas.
  *
@@ -54,6 +103,7 @@ import {
     InputTextModule,
     SelectModule,
     TableModule,
+    TagModule,
   ],
   templateUrl: './documento-form.html',
 })
@@ -84,10 +134,15 @@ export class DocumentoForm implements OnInit {
 
   // Cabecera
   origenId: string | null = null;
-  estadoId: string | null = null;
+  /** Signal y no campo llano: ya no lo edita ningún control —lo pone el
+   * servidor al crear y los botones de revisión al cambiarlo— pero sí lo
+   * leen `acciones` y `estadoActual`, que son `computed`. */
+  readonly estadoId = signal<string | null>(null);
   fecha: Date = new Date();
   proveedorId: string | null = null;
   tiempoAtencion = 0;
+  /** Días de crédito. 0 es contado, que es el default del servidor. */
+  condicionPagoDias = 0;
 
   // Detalle
   readonly lineas = signal<LineaEditable[]>([]);
@@ -155,9 +210,19 @@ export class DocumentoForm implements OnInit {
     if (id) this.cargarDocumento(tipo, id);
   }
 
+  /** Id de un estado del catálogo por su `codigo`, o `null` si no está.
+   *
+   * Devuelve `null` en vez de reventar porque el catálogo es abierto y una base
+   * sin migrar puede no tener el código: la pantalla prefiere esconder el botón
+   * antes que ofrecer una acción que va a fallar contra el servidor.
+   */
+  private idDeCodigo(codigo: string): string | null {
+    return this.estadosLista().find((e) => e.codigo === codigo)?.id ?? null;
+  }
+
   /** Id del estado `APR`, o `null` si el catálogo no lo tiene todavía. */
   private get idAprobado(): string | null {
-    return this.estadosLista().find((e) => e.codigo === CODIGO_APROBADO)?.id ?? null;
+    return this.idDeCodigo(CODIGO_APROBADO);
   }
 
   /** Carga las opciones del selector de origen.
@@ -211,11 +276,12 @@ export class DocumentoForm implements OnInit {
     }).subscribe({
       next: ({ cabecera, detalle }) => {
         this.origenId = String(cabecera[tipo.origen.campo] ?? '') || null;
-        this.estadoId = cabecera.estado_id;
+        this.estadoId.set(cabecera.estado_id);
         this.fecha = new Date(`${cabecera.fecha}T00:00:00`);
         if (tipo.conProveedor) {
           this.proveedorId = cabecera.proveedor_id ?? null;
           this.tiempoAtencion = cabecera.tiempo_atencion ?? 0;
+          this.condicionPagoDias = cabecera.condicion_pago_dias ?? 0;
         }
         this.lineas.set(
           detalle.map((d: DocumentoDetalle) => ({
@@ -264,7 +330,6 @@ export class DocumentoForm implements OnInit {
   get errorCabecera(): string | null {
     const t = this.tipo();
     if (!this.origenId) return `Seleccione ${t.origen.etiqueta.toLowerCase()}`;
-    if (!this.estadoId) return 'Seleccione el estado';
     if (!this.fecha) return 'Indique la fecha';
     if (t.conProveedor && !this.proveedorId) return 'Seleccione el proveedor';
     return null;
@@ -293,12 +358,13 @@ export class DocumentoForm implements OnInit {
     const t = this.tipo();
     const cuerpo: Record<string, unknown> = {
       [t.origen.campo]: this.origenId,
-      estado_id: this.estadoId,
+      estado_id: this.estadoId(),
       fecha: this.aIso(this.fecha),
     };
     if (t.conProveedor) {
       cuerpo['proveedor_id'] = this.proveedorId;
       cuerpo['tiempo_atencion'] = this.tiempoAtencion;
+      cuerpo['condicion_pago_dias'] = this.condicionPagoDias;
     }
     return cuerpo;
   }
@@ -325,10 +391,13 @@ export class DocumentoForm implements OnInit {
     return cuerpo;
   }
 
-  guardar(): void {
-    if (!this.valido || this.guardando()) return;
-    this.guardando.set(true);
-
+  /** Guarda cabecera y líneas, y emite el id del documento.
+   *
+   * Separado de `guardar()` porque los botones de revisión necesitan lo mismo
+   * antes de tocar el estado: aprobar con las líneas sin guardar generaría el
+   * documento sucesor copiando las viejas.
+   */
+  private guardarTodo(): Observable<string> {
     const t = this.tipo();
     const cabeceras = this.registro.cabecera(t.clave);
     const detalles = this.registro.detalle(t.clave);
@@ -339,30 +408,120 @@ export class DocumentoForm implements OnInit {
       ? cabeceras.actualizar(id, this.cuerpoCabecera())
       : cabeceras.crear(this.cuerpoCabecera());
 
-    guardarCabecera
+    return guardarCabecera.pipe(
+      switchMap((cabecera: DocumentoCabecera) => {
+        const padreId = cabecera.id;
+        const peticiones = [
+          ...this.lineasEliminadas().map((idLinea) => detalles.desactivar(idLinea)),
+          ...this.lineas().map((linea) =>
+            linea.id
+              ? detalles.actualizar(linea.id, this.cuerpoLinea(linea, padreId))
+              : detalles.crear(this.cuerpoLinea(linea, padreId)),
+          ),
+        ];
+        // `forkJoin` de una lista vacía no emite nunca: con un documento sin
+        // cambios en el detalle el guardado se quedaba colgado.
+        return (peticiones.length ? forkJoin(peticiones) : of([])).pipe(
+          map(() => padreId),
+        );
+      }),
+    );
+  }
+
+  guardar(): void {
+    if (!this.valido || this.guardando()) return;
+    this.guardando.set(true);
+
+    const t = this.tipo();
+    const id = this.documentoId();
+
+    this.guardarTodo().subscribe({
+      next: () => {
+        this.guardando.set(false);
+        this.msg.add({
+          severity: 'success',
+          summary: id ? 'Documento actualizado' : 'Documento creado',
+          detail: `Se guardó ${t.articulo} ${t.singular} con ${this.lineas().length} línea(s).`,
+          life: 3000,
+        });
+        this.volver();
+      },
+      error: (e: AppError) => {
+        this.guardando.set(false);
+        this.msg.add({
+          severity: 'error',
+          summary: 'No se pudo guardar',
+          detail: e.message,
+        });
+      },
+    });
+  }
+
+  // ── Revisión: aprobar, observar, rechazar ─────────────────────────────────
+
+  /** Las acciones que tiene sentido ofrecer sobre este documento.
+   *
+   * Solo en edición: un documento que todavía no existe no se aprueba, se
+   * crea. Se descarta la acción cuyo estado ya es el actual —"Aprobar" un
+   * documento aprobado no hace nada— y la que no tiene fila en el catálogo,
+   * que en una base sin la migración de `OBS`/`RCH` son justamente las dos
+   * nuevas.
+   */
+  readonly acciones = computed(() => {
+    if (this.esNuevo()) return [];
+    return ACCIONES_ESTADO.filter((a) => {
+      const destino = this.idDeCodigo(a.codigo);
+      return destino !== null && destino !== this.estadoId();
+    });
+  });
+
+  /** Descripción del estado en que está el documento, para el encabezado. */
+  readonly estadoActual = computed(() => {
+    const id = this.estadoId();
+    return this.estadosLista().find((e) => e.id === id)?.descripcion ?? null;
+  });
+
+  /** Guarda lo que está en pantalla y recién después mueve el estado.
+   *
+   * Son dos PATCH y no uno a propósito. Aprobar dispara en el servidor la
+   * generación del documento siguiente, que copia las líneas de este: si el
+   * cambio de estado viajara junto con la cabecera, el sucesor se armaría con
+   * las líneas de antes de esta edición.
+   */
+  cambiarEstado(accion: AccionEstado): void {
+    if (this.esNuevo() || !this.valido || this.guardando()) return;
+
+    const destino = this.idDeCodigo(accion.codigo);
+    if (!destino) {
+      this.msg.add({
+        severity: 'error',
+        summary: `No se pudo ${accion.etiqueta.toLowerCase()}`,
+        detail: `El catálogo de estados no tiene el código '${accion.codigo}'.`,
+      });
+      return;
+    }
+
+    const t = this.tipo();
+    this.guardando.set(true);
+
+    this.guardarTodo()
       .pipe(
-        switchMap((cabecera: DocumentoCabecera) => {
-          const padreId = cabecera.id;
-          const peticiones = [
-            ...this.lineasEliminadas().map((idLinea) => detalles.desactivar(idLinea)),
-            ...this.lineas().map((linea) =>
-              linea.id
-                ? detalles.actualizar(linea.id, this.cuerpoLinea(linea, padreId))
-                : detalles.crear(this.cuerpoLinea(linea, padreId)),
-            ),
-          ];
-          // `forkJoin` de una lista vacía no emite nunca: con un documento sin
-          // cambios en el detalle el guardado se quedaba colgado.
-          return peticiones.length ? forkJoin(peticiones) : of([]);
-        }),
+        switchMap((documentoId) =>
+          this.registro.cabecera(t.clave).actualizar(documentoId, {
+            estado_id: destino,
+          }),
+        ),
       )
       .subscribe({
         next: () => {
           this.guardando.set(false);
+          // La lista de al lado ya no coincide con lo que se acaba de hacer,
+          // así que se vuelve en vez de dejar el formulario mostrando el
+          // estado viejo.
           this.msg.add({
             severity: 'success',
-            summary: id ? 'Documento actualizado' : 'Documento creado',
-            detail: `Se guardó ${t.articulo} ${t.singular} con ${this.lineas().length} línea(s).`,
+            summary: `Documento ${accion.participio}`,
+            detail: `Se ${accion.hecho} ${t.articulo} ${t.singular}.`,
             life: 3000,
           });
           this.volver();
@@ -371,11 +530,31 @@ export class DocumentoForm implements OnInit {
           this.guardando.set(false);
           this.msg.add({
             severity: 'error',
-            summary: 'No se pudo guardar',
+            summary: `No se pudo ${accion.etiqueta.toLowerCase()}`,
             detail: e.message,
           });
         },
       });
+  }
+
+  /** Se puede comparar cuando esto es una cotización ya guardada.
+   *
+   * En alta no: la cotización todavía no cuelga de ningún pedido guardado, y el
+   * comparativo se pide por pedido.
+   */
+  readonly puedeComparar = computed(
+    () => !this.esNuevo() && this.tipo().clave === 'cotizaciones',
+  );
+
+  /** Al comparativo del pedido de esta cotización.
+   *
+   * `origenId` es el `pedido_id` en la cotización: el descriptor del tipo dice
+   * que su origen es el pedido (ver `tipos-documento.ts`), así que no hace falta
+   * un campo aparte.
+   */
+  comparar(): void {
+    if (!this.origenId) return;
+    this.router.navigate(['/cotizaciones/comparar', this.origenId]);
   }
 
   volver(): void {

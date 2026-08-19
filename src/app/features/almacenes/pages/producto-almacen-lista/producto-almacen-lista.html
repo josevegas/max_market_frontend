@@ -3,7 +3,8 @@
     <div>
       <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">Stock por almacén</h1>
       <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-        Qué productos guarda cada almacén, con su mínimo, su techo y su precio de tienda
+        Qué productos guarda cada almacén, cuánto hay según sus lotes, y su mínimo,
+        su techo y su precio de tienda
       </p>
     </div>
     <p-button label="Asignar producto" icon="pi pi-plus" (onClick)="nuevo()" />
@@ -15,7 +16,7 @@
         <label class="text-xs font-medium text-slate-500">Almacén</label>
         <p-select
           [ngModel]="almacenFiltro()"
-          (ngModelChange)="almacenFiltro.set($event)"
+          (ngModelChange)="alCambiarAlmacen($event)"
           [options]="almacenesLista()"
           optionLabel="nombre"
           optionValue="id"
@@ -63,15 +64,21 @@
           <th>Producto</th>
           <th class="w-44">Almacén</th>
           <th class="w-28">Unidad</th>
+          <th class="w-36 text-right">Stock</th>
           <th class="w-24 text-right">Mínimo</th>
           <th class="w-24 text-right">Máximo</th>
           <th class="w-32 text-right">Precio tienda</th>
           <th class="w-32 text-center">Estado</th>
-          <th class="w-32 text-center">Acciones</th>
+          <th class="w-20 text-center">Acciones</th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-pa>
-        <tr>
+        <!-- La fila entera abre el detalle. La celda de acciones corta la
+             propagación para que dar de baja no abra el detalle encima. -->
+        <tr
+          class="cursor-pointer hover:bg-slate-50 dark:hover:bg-surface-2"
+          (click)="abrirDetalle(pa)"
+        >
           <td class="font-medium">{{ nombreProducto().get(pa.producto_id) || '—' }}</td>
           <td class="text-sm text-slate-600 dark:text-slate-300">
             {{ nombreAlmacen().get(pa.almacen_id) || '—' }}
@@ -79,14 +86,38 @@
           <td class="text-sm text-slate-600 dark:text-slate-300">
             {{ nombreUnidad().get(pa.unidad_medida_id) || '—' }}
           </td>
+          <td class="text-right">
+            <!-- El disponible viene de sumar los lotes, no de esta fila: la
+                 ficha es la configuración y el stock es otra tabla. -->
+            <div class="flex items-center justify-end gap-1.5">
+              <span class="font-mono text-sm font-semibold" [class]="claseStock(pa)">
+                {{ disponibleDe(pa) }}
+              </span>
+              @if (unidadDisponibleDe(pa)) {
+                <span class="text-[11px] text-slate-400">{{ unidadDisponibleDe(pa) }}</span>
+              }
+              @if (unidadesDistintas(pa)) {
+                <!-- La ficha está en otra unidad que los lotes: los dos números
+                     de la fila no se comparan a ojo. El semáforo sigue valiendo
+                     porque el servidor compara en unidad mínima. -->
+                <i
+                  class="pi pi-info-circle text-[11px] text-amber-500"
+                  pTooltip="El mínimo y el máximo de la ficha están en otra unidad que los lotes. El semáforo se calcula en unidad mínima."
+                  tooltipPosition="left"
+                ></i>
+              }
+            </div>
+          </td>
           <td class="text-right font-mono text-sm">{{ pa.stock_minimo }}</td>
           <td class="text-right font-mono text-sm">{{ pa.stock_maximo ?? '—' }}</td>
           <td class="text-right font-mono text-sm">{{ pa.precio_venta_tienda }}</td>
           <td class="text-center">
             <p-tag [value]="pa.estado" [severity]="severidadEstado(pa.estado)" />
           </td>
-          <td class="text-center whitespace-nowrap">
-            <p-button icon="pi pi-pencil" severity="secondary" [text]="true" (onClick)="editar(pa)" />
+          <td class="text-center whitespace-nowrap" (click)="$event.stopPropagation()">
+            <!-- No hay lápiz: la fila abre el detalle y ahí se corrige la ficha
+                 junto a sus lotes. La baja se queda acá porque es la acción que
+                 no conviene esconder detrás de un clic más. -->
             @if (pa.is_active) {
               <p-button icon="pi pi-trash" severity="danger" [text]="true" (onClick)="darDeBaja(pa)" />
             }
@@ -95,7 +126,7 @@
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="8" class="text-center text-slate-400 py-10">
+          <td colspan="9" class="text-center text-slate-400 py-10">
             No hay productos asignados a este almacén
           </td>
         </tr>
@@ -104,12 +135,23 @@
   </div>
 </div>
 
+<app-producto-almacen-detalle
+  [ficha]="detalle()"
+  [producto]="productoDelDetalle()"
+  [almacen]="almacenDelDetalle()"
+  [stock]="stockDelDetalle()"
+  [unidades]="unidadesLista()"
+  (cerrar)="detalle.set(null)"
+  (guardado)="alGuardarFicha($event)"
+  (lotesCambiados)="alCambiarLotes()"
+/>
+
 <p-dialog
   [visible]="dialogoAbierto()"
   (visibleChange)="dialogoAbierto.set($event)"
   [modal]="true"
   [style]="{ width: '34rem' }"
-  [header]="editando() ? 'Editar stock' : 'Asignar producto al almacén'"
+  header="Asignar producto al almacén"
 >
   <div class="space-y-4 pt-2">
     <div class="flex flex-col gap-1">
@@ -202,7 +244,7 @@
   <ng-template pTemplate="footer">
     <p-button label="Cancelar" severity="secondary" [text]="true" (onClick)="dialogoAbierto.set(false)" />
     <p-button
-      [label]="editando() ? 'Guardar' : 'Asignar'"
+      label="Asignar"
       icon="pi pi-check"
       [loading]="guardando()"
       [disabled]="!valido"

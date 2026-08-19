@@ -14,13 +14,6 @@ export const routes: Routes = [
         (m) => m.ProductoAlmacenLista,
       ),
   },
-  {
-    path: 'lotes',
-    loadComponent: () =>
-      import('./pages/producto-lote-lista/producto-lote-lista').then(
-        (m) => m.ProductoLoteLista,
-      ),
-  },
   // El maestro de unidades vive acá porque acá están su modelo y su servicio,
   // aunque en el menú aparezca junto al resto de los catálogos de producto:
   // es donde el usuario lo busca, al lado de Presentaciones.

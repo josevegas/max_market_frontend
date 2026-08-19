@@ -1,0 +1,211 @@
+<div class="space-y-5">
+  <div class="flex items-start justify-between gap-3">
+    <div class="flex items-start gap-3">
+      <p-button icon="pi pi-arrow-left" severity="secondary" [text]="true" (onClick)="volver()" />
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">
+          Comparativo de cotizaciones
+        </h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          Las cotizaciones de un mismo pedido, puntuadas para decidir cuál aprobar
+        </p>
+      </div>
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <p-skeleton height="18rem" />
+  } @else if (error()) {
+    <div
+      class="bg-white dark:bg-surface-1 rounded-xl border border-red-200 dark:border-red-900 p-6 text-center"
+    >
+      <i class="pi pi-exclamation-triangle text-2xl text-red-500"></i>
+      <p class="mt-2 text-sm text-slate-700 dark:text-slate-200">{{ error() }}</p>
+    </div>
+  } @else if (!hayCotizaciones()) {
+    <div
+      class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-10 text-center"
+    >
+      <i class="pi pi-inbox text-3xl text-slate-300"></i>
+      <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">
+        Este pedido no tiene cotizaciones que comparar. Aparecen al aprobarlo: se
+        genera una por cada proveedor que distribuya sus productos.
+      </p>
+    </div>
+  } @else {
+    <!-- Cómo se calcula. Va arriba y no en un tooltip escondido: quien aprueba
+         una compra tiene que poder explicar por qué eligió esa. -->
+    <div
+      class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-4"
+    >
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-2 justify-between">
+        <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+          <span class="font-semibold text-slate-600 dark:text-slate-300">
+            Criterios y peso:
+          </span>
+          @for (c of criterios; track c.clave) {
+            <span class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+              <span class="font-medium text-slate-700 dark:text-slate-200">
+                {{ c.etiqueta }}
+              </span>
+              <span
+                class="px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-surface-2 font-mono font-semibold text-slate-600 dark:text-slate-300"
+              >
+                {{ peso(c.clave) }}%
+              </span>
+              <i
+                class="pi pi-info-circle text-[11px] text-slate-400"
+                [pTooltip]="c.ayuda"
+                tooltipPosition="bottom"
+              ></i>
+            </span>
+          }
+        </div>
+        <span class="text-xs text-slate-400 font-mono">
+          {{ resumen().total }}
+          {{ resumen().total === 1 ? 'cotización' : 'cotizaciones' }}
+          @if (resumen().enCarrera !== resumen().total) {
+            · {{ resumen().enCarrera }} en carrera
+          }
+          · Pedido: {{ datos()?.unidades_pedidas }} unidades mínimas
+        </span>
+      </div>
+    </div>
+
+    @if (unaSola()) {
+      <div
+        class="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-xs text-amber-800 dark:text-amber-300"
+      >
+        Hay una sola cotización, así que no hay comparación: el puntaje dice cómo
+        queda contra los criterios, no que le haya ganado a otra.
+      </div>
+    }
+
+    <!-- La matriz. Scroll horizontal propio: son seis columnas de datos más las
+         acciones, y en una pantalla angosta el `body` no debe desplazarse. -->
+    <div
+      class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border overflow-hidden"
+    >
+      <div class="overflow-x-auto">
+        <p-table [value]="datos()?.cotizaciones || []" styleClass="p-datatable-sm">
+          <ng-template pTemplate="header">
+            <tr>
+              <th class="min-w-56">Proveedor</th>
+              @for (c of criterios; track c.clave) {
+                <th class="w-40 text-right whitespace-nowrap">
+                  {{ c.etiqueta }}
+                  <span class="block text-[10px] font-normal text-slate-400">
+                    {{ peso(c.clave) }}% · {{ c.mejor === 'menor' ? 'menos' : 'más' }} es mejor
+                  </span>
+                </th>
+              }
+              <th class="w-32 text-right">Puntaje</th>
+              <th class="w-40 text-center">Acciones</th>
+            </tr>
+          </ng-template>
+
+          <ng-template pTemplate="body" let-f>
+            <tr [class]="claseFila(f)">
+              <td>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-medium text-slate-800 dark:text-slate-100">
+                    {{ f.proveedor }}
+                  </span>
+                  @if (f.optimo) {
+                    <!-- El indicador que pidió el negocio: la de mayor puntaje. -->
+                    <p-tag value="Óptimo" severity="success" icon="pi pi-star-fill" />
+                  }
+                  <p-tag [value]="f.estado" [severity]="severidadEstado(f)" />
+                </div>
+                <div class="text-[11px] text-slate-400 mt-1 font-mono">
+                  Total {{ f.monto_total }} · atiende {{ f.unidades_atendidas }} de
+                  {{ datos()?.unidades_pedidas }} u. mín.
+                </div>
+                @if (f.productos_sin_cotizar.length) {
+                  <!-- Explica la cobertura: el porcentaje solo no dice qué falta. -->
+                  <div class="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                    No cotiza: {{ faltantes(f) }}
+                  </div>
+                }
+              </td>
+
+              @for (c of criterios; track c.clave) {
+                <td class="text-right align-top">
+                  <!-- El valor real arriba y el puntaje abajo: el primero es el
+                       que se coteja contra el documento, el segundo el que
+                       compara. -->
+                  <div class="font-mono text-sm text-slate-700 dark:text-slate-200">
+                    {{ valor(f, c.clave) }}
+                  </div>
+                  <div class="flex items-center justify-end gap-1.5 mt-1">
+                    <div
+                      class="h-1 w-12 rounded-full bg-slate-100 dark:bg-surface-2 overflow-hidden"
+                    >
+                      <div
+                        class="h-full rounded-full bg-current"
+                        [class]="clasePuntaje(puntaje(f, c.clave))"
+                        [style.width]="ancho(puntaje(f, c.clave))"
+                      ></div>
+                    </div>
+                    <span
+                      class="font-mono text-[11px] font-semibold w-10 text-right"
+                      [class]="clasePuntaje(puntaje(f, c.clave))"
+                    >
+                      {{ puntaje(f, c.clave) | number: '1.0-0' }}
+                    </span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 font-mono mt-0.5">
+                    +{{ aporte(f, c.clave) | number: '1.2-2' }}
+                  </div>
+                </td>
+              }
+
+              <td class="text-right">
+                <div
+                  class="font-mono text-lg font-bold"
+                  [class]="clasePuntaje(+f.puntaje_total)"
+                >
+                  {{ f.puntaje_total | number: '1.2-2' }}
+                </div>
+                <div class="text-[10px] text-slate-400">de 100</div>
+              </td>
+
+              <td class="text-center whitespace-nowrap">
+                @if (yaAprobada(f)) {
+                  <p-tag value="Aprobada" severity="success" icon="pi pi-check" />
+                } @else {
+                  <!-- Cualquiera se puede aprobar, no solo la óptima: el cuadro
+                       sugiere, quien compra decide. -->
+                  <p-button
+                    label="Aprobar"
+                    icon="pi pi-check-circle"
+                    [severity]="f.optimo ? 'success' : 'secondary'"
+                    [outlined]="!f.optimo"
+                    [loading]="aprobando() === f.cotizacion_id"
+                    [disabled]="!!aprobando()"
+                    (onClick)="aprobar(f)"
+                  />
+                }
+                <p-button
+                  icon="pi pi-external-link"
+                  severity="secondary"
+                  [text]="true"
+                  pTooltip="Ver la cotización"
+                  tooltipPosition="left"
+                  (onClick)="verCotizacion(f)"
+                />
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </div>
+
+    <p class="text-xs text-slate-400">
+      El óptimo es una sugerencia: los criterios no saben de acuerdos con el
+      proveedor ni de urgencias. Se puede aprobar cualquiera, y al hacerlo las
+      demás quedan rechazadas. Las rechazadas siguen listadas —son el registro de
+      contra qué se eligió— pero nunca se marcan como óptimas.
+    </p>
+  }
+</div>

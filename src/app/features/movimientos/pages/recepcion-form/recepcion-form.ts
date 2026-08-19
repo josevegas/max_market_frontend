@@ -12,6 +12,7 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { forkJoin, of, switchMap } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 import { AppError } from '../../../../core/http/api-error';
 import { Almacen, UnidadMedida } from '../../../almacenes/models/almacenes.model';
@@ -21,29 +22,59 @@ import {
 } from '../../../almacenes/services/almacenes.service';
 import { Producto } from '../../../productos/models/catalogo.model';
 import { ProductoService } from '../../../productos/services/productos.service';
-import { CODIGO_RECEPCIONADO } from '../../models/codigos-estado';
+import { EmpresaService } from '../../../proveedores/services/empresas.service';
+import { CODIGO_APROBADO, CODIGO_RECEPCIONADO } from '../../models/codigos-estado';
 import {
+  Cotizacion,
   DocumentoDetalle,
   Estado,
   GuiaRemision,
   LineaRecepcion,
   OrdenCompra,
+  Pedido,
   Recepcion,
   RecepcionCreate,
   RecepcionDetalle,
+  Requerimiento,
 } from '../../models/movimientos.model';
 import {
+  CotizacionService,
   EstadoService,
   GuiaRemisionDetalleService,
   GuiaRemisionService,
   OrdenCompraDetalleService,
   OrdenCompraService,
+  PedidoService,
   RecepcionDetalleService,
   RecepcionService,
+  RequerimientoService,
 } from '../../services/movimientos.service';
 
 /** Contra qué papel se recibe. */
 type Origen = 'guia' | 'orden';
+
+/** Lo que se sabe del documento contra el que se recibe, después de recorrer
+ * la cadena hacia atrás.
+ *
+ * La recepción cuelga de la guía o de la orden, pero los datos que hacen falta
+ * para llenar la cabecera están repartidos: el almacén vive en el
+ * requerimiento —cinco documentos más atrás— y el proveedor, en la cotización.
+ * Nada de esto lo trae un solo endpoint, así que se resuelve encadenando.
+ */
+interface OrigenResuelto {
+  /** Fecha del documento elegido. */
+  fecha: string;
+  ordenId: string | null;
+  ordenFecha: string | null;
+  montoOrden: string | number | null;
+  proveedor: string | null;
+  /** El almacén que pidió la mercadería, del requerimiento que abrió la
+   * cadena. Nulo si algún eslabón no se pudo leer. */
+  almacenId: string | null;
+  /** Qué eslabones se pudieron leer. Con la cadena incompleta el formulario no
+   * bloquea nada: prefiere dejar decidir a inventar. */
+  cadenaCompleta: boolean;
+}
 
 /** Editor de una recepción: cabecera y líneas juntas.
  *
@@ -79,6 +110,10 @@ export class RecepcionForm implements OnInit {
   private readonly guiaDetalleSvc = inject(GuiaRemisionDetalleService);
   private readonly ordenSvc = inject(OrdenCompraService);
   private readonly ordenDetalleSvc = inject(OrdenCompraDetalleService);
+  private readonly cotizacionSvc = inject(CotizacionService);
+  private readonly pedidoSvc = inject(PedidoService);
+  private readonly requerimientoSvc = inject(RequerimientoService);
+  private readonly empresaSvc = inject(EmpresaService);
   private readonly estadoSvc = inject(EstadoService);
   private readonly almacenSvc = inject(AlmacenService);
   private readonly productoSvc = inject(ProductoService);
@@ -112,6 +147,11 @@ export class RecepcionForm implements OnInit {
   fecha: Date = new Date();
   observaciones = '';
 
+  /** Lo que se leyó del documento de origen. Nulo mientras no haya uno
+   * elegido, o si la cadena no se pudo recorrer. */
+  readonly origenResuelto = signal<OrigenResuelto | null>(null);
+  readonly resolviendoOrigen = signal(false);
+
   readonly lineas = signal<LineaRecepcion[]>([]);
   /** Ids de líneas guardadas que el usuario quitó. Se dan de baja al guardar,
    * no al quitarlas: mientras no se confirme, salir debe dejar todo como
@@ -124,6 +164,9 @@ export class RecepcionForm implements OnInit {
   readonly nombreEstado = computed(
     () => new Map(this.estados().map((e) => [e.id, e.descripcion])),
   );
+  readonly nombreAlmacen = computed(
+    () => new Map(this.almacenes().map((a) => [a.id, a.nombre])),
+  );
 
   /** Guías que todavía no se recibieron. La API rechaza con 409 recepcionar
    * dos veces la misma, así que no tiene sentido ofrecerlas. */
@@ -135,9 +178,26 @@ export class RecepcionForm implements OnInit {
     return libres.map((g) => ({ id: g.id, etiqueta: `${g.fecha} · ${g.id.slice(0, 8)}` }));
   });
 
-  readonly ordenesLista = computed(() =>
-    this.ordenes().map((o) => ({ id: o.id, etiqueta: `${o.fecha} · ${o.id.slice(0, 8)}` })),
-  );
+  /** Órdenes que todavía se pueden recibir: solo las aprobadas.
+   *
+   * `APR` es el único estado desde el que la cadena avanza. Una `ATE` ya
+   * cumplió su función —la mercadería llegó y la recepción la arrastró a
+   * atendida— y volver a recibirla duplicaría el stock; las pendientes,
+   * observadas o rechazadas no están visadas todavía.
+   *
+   * Se filtra en positivo y no descartando `ATE`: los otros cuatro estados
+   * tampoco habilitan recibir, y enumerarlos dejaría fuera cualquier estado
+   * nuevo que el catálogo admita.
+   */
+  readonly ordenesDisponibles = computed(() => {
+    const aprobado = this.estados().find((e) => e.codigo === CODIGO_APROBADO)?.id;
+    // Sin el catálogo cargado no se puede filtrar; se ofrecen todas antes que
+    // dejar el selector vacío sin explicación, igual que con las guías.
+    const listas = aprobado
+      ? this.ordenes().filter((o) => o.estado_id === aprobado)
+      : this.ordenes();
+    return listas.map((o) => ({ id: o.id, etiqueta: `${o.fecha} · ${o.id.slice(0, 8)}` }));
+  });
 
   readonly totalIngresado = computed(() =>
     this.lineas().reduce((s, l) => s + (l.cantidad_ingresada || 0), 0),
@@ -218,19 +278,135 @@ export class RecepcionForm implements OnInit {
     this.estadoId = r.estado_id;
     this.fecha = new Date(`${r.fecha}T00:00:00`);
     this.observaciones = r.observaciones ?? '';
+
+    // El resumen del origen también sirve acá, para saber contra qué se
+    // recibió sin ir a buscarlo a otra pantalla.
+    const origenId = r.guia_remision_id ?? r.orden_compra_id;
+    if (origenId) this.resolverOrigen(origenId, false);
   }
 
-  /** Al cambiar de guía/orden se descartan las líneas propuestas: si no,
+  /** Al cambiar de guía a orden se descartan las líneas propuestas: si no,
    *  quedarían las del documento anterior con productos que este no trae. */
   alCambiarOrigen(): void {
     this.guiaId = null;
     this.ordenId = null;
+    this.origenResuelto.set(null);
     this.descartarPropuestas();
   }
 
   private descartarPropuestas(): void {
     this.lineas.update((ls) => ls.filter((l) => l.id));
   }
+
+  /** Elegir el documento **es** cargarlo: sus líneas y los datos de su cadena
+   * entran solos.
+   *
+   * Antes había que elegirlo y después pulsar "traer líneas", y el almacén se
+   * tecleaba aparte aunque el requerimiento ya dijera cuál era. Eran dos pasos
+   * para una sola decisión, y el segundo se olvidaba.
+   */
+  alSeleccionarDocumento(): void {
+    this.descartarPropuestas();
+    this.origenResuelto.set(null);
+    const id = this.origen === 'guia' ? this.guiaId : this.ordenId;
+    if (!id) return;
+    this.resolverOrigen(id, true);
+    this.proponerLineas();
+  }
+
+  /** Recorre la cadena hacia atrás hasta el requerimiento, que es donde vive
+   * el almacén, juntando de paso el proveedor y el monto de la orden.
+   *
+   * Va encadenado y no en paralelo porque cada eslabón trae el id del
+   * siguiente. Un eslabón que falla no rompe la pantalla: se devuelve lo que
+   * se alcanzó a leer y los campos que no se pudieron deducir quedan
+   * habilitados para llenarlos a mano.
+   */
+  private resolverOrigen(id: string, aplicar: boolean): void {
+    this.resolviendoOrigen.set(true);
+
+    const doc$ =
+      this.origen === 'guia'
+        ? this.guiaSvc
+            .obtener(id)
+            .pipe(map((g: GuiaRemision) => ({ fecha: g.fecha, ordenId: g.orden_compra_id })))
+        : of({ fecha: null as string | null, ordenId: id });
+
+    doc$
+      .pipe(
+        switchMap((doc) =>
+          this.ordenSvc.obtener(doc.ordenId).pipe(
+            switchMap((orden: OrdenCompra) =>
+              this.cotizacionSvc.obtener(orden.cotizacion_id).pipe(
+                switchMap((cotizacion: Cotizacion) =>
+                  forkJoin({
+                    almacenId: this.pedidoSvc.obtener(cotizacion.pedido_id).pipe(
+                      switchMap((pedido: Pedido) =>
+                        this.requerimientoSvc.obtener(pedido.requerimiento_id),
+                      ),
+                      map((req: Requerimiento) => req.almacen_id as string | null),
+                      catchError(() => of(null as string | null)),
+                    ),
+                    // El nombre del proveedor es rótulo, no dato: si la empresa
+                    // no se puede leer, el resumen muestra el resto igual.
+                    proveedor: this.empresaSvc.obtener(cotizacion.proveedor_id).pipe(
+                      map((e) => e.razon_social as string | null),
+                      catchError(() => of(null as string | null)),
+                    ),
+                  }).pipe(
+                    map(({ almacenId, proveedor }) => ({
+                      fecha: doc.fecha ?? orden.fecha,
+                      ordenId: orden.id,
+                      ordenFecha: orden.fecha,
+                      montoOrden: orden.monto_total,
+                      proveedor,
+                      almacenId,
+                      cadenaCompleta: almacenId !== null,
+                    })),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      )
+      .subscribe({
+        next: (resuelto: OrigenResuelto) => {
+          this.resolviendoOrigen.set(false);
+          this.origenResuelto.set(resuelto);
+          // En una recepción ya registrada el resumen se muestra pero no se
+          // aplica: su almacén y su fecha son los que quedaron asentados, y
+          // pisarlos con los del documento cambiaría el papel en silencio.
+          if (aplicar) this.aplicarOrigen(resuelto);
+        },
+        error: () => {
+          // La cadena no se pudo recorrer (un documento dado de baja, un
+          // permiso). Las líneas se piden aparte y pueden haber llegado igual;
+          // lo que se pierde es el autocompletado, no la pantalla.
+          this.resolviendoOrigen.set(false);
+          this.origenResuelto.set(null);
+          this.msg.add({
+            severity: 'warn',
+            summary: 'No se pudo leer la cadena del documento',
+            detail: 'Complete el almacén y la fecha a mano.',
+            life: 4000,
+          });
+        },
+      });
+  }
+
+  /** El almacén y la fecha los manda el documento, así que se escriben acá y
+   * el template los deja bloqueados: elegir otro almacén dejaría el stock en
+   * uno distinto del que pidió la mercadería. */
+  private aplicarOrigen(origen: OrigenResuelto): void {
+    if (origen.almacenId) this.almacenId = origen.almacenId;
+    if (origen.fecha) this.fecha = new Date(`${origen.fecha}T00:00:00`);
+  }
+
+  /** El almacén se bloquea solo cuando la cadena lo pudo decir. Si no, sería
+   * un campo obligatorio que nadie puede llenar. */
+  readonly almacenBloqueado = computed(() => !!this.origenResuelto()?.almacenId);
+  readonly fechaBloqueada = computed(() => !!this.origenResuelto()?.fecha);
 
   /** Propone las líneas a partir de lo que declara el documento de origen.
    *
@@ -272,6 +448,8 @@ export class RecepcionForm implements OnInit {
             producto_id: d.producto_id,
             unidad_medida_id: d.unidad_medida_id,
             cantidad_esperada: d.cantidad,
+            // Arranca en lo declarado para que el operador solo toque lo que
+            // no cuadró; con eso, lo devuelto arranca en cero.
             cantidad_ingresada: d.cantidad,
             cantidad_devuelta: 0,
             precio_unitario: Number(d.precio_unitario ?? 0),
@@ -290,6 +468,22 @@ export class RecepcionForm implements OnInit {
         this.msg.add({ severity: 'error', summary: 'No se pudo leer el origen', detail: e.message });
       },
     });
+  }
+
+  /** Lo devuelto sale de lo aceptado: es lo que la guía declaraba menos lo que
+   * se dio por bueno, sea porque no llegó o porque se rechazó.
+   *
+   * Se calcula y no se teclea porque es la resta de dos números que ya están
+   * en la fila, y tecleada se equivocaba: al stock entra `cantidad_ingresada`
+   * sola, así que un devuelto mal puesto no descuadraba el inventario pero sí
+   * el reclamo al proveedor.
+   */
+  recalcularDevuelta(linea: LineaRecepcion): void {
+    const esperada = linea.cantidad_esperada || 0;
+    const ingresada = linea.cantidad_ingresada || 0;
+    // Nunca negativo: aceptar más de lo declarado es un descuadre del papel,
+    // no una devolución al revés. La API lo rechaza con un 409 aparte.
+    linea.cantidad_devuelta = Math.max(0, esperada - ingresada);
   }
 
   agregarLinea(): void {

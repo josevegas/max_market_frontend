@@ -85,7 +85,7 @@ export class Sidebar {
    *  orden de compra → guía). */
   readonly menu: GrupoMenu[] = [
     {
-      titulo: 'Maestro de productos',
+      titulo: 'Maestro de Artículos',
       items: [
         { etiqueta: 'Productos', icono: 'pi-box', ruta: '/productos' },
         { etiqueta: 'Familias', icono: 'pi-sitemap', ruta: '/familias' },
@@ -124,7 +124,6 @@ export class Sidebar {
       items: [
         { etiqueta: 'Almacenes', icono: 'pi-warehouse', ruta: '/almacenes' },
         { etiqueta: 'Stock por almacén', icono: 'pi-chart-bar', ruta: '/stock-almacen' },
-        { etiqueta: 'Lotes', icono: 'pi-calendar-clock', ruta: '/lotes' },
       ],
     },
     {

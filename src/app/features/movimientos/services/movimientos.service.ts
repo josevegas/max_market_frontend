@@ -1,7 +1,11 @@
 import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+
+import { ApiClient } from '../../../core/http/api-client';
 
 import { RecursoService } from '../../productos/services/catalogo.service';
 import {
+  Comparativo,
   Cotizacion,
   DocumentoCabecera,
   DocumentoDetalle,
@@ -31,6 +35,34 @@ export type ClaveDocumento =
 @Injectable({ providedIn: 'root' })
 export class EstadoService extends RecursoService<Estado, EstadoCreate, EstadoUpdate> {
   protected readonly ruta = 'estados';
+}
+
+// ── Comparativo de cotizaciones ─────────────────────────────────────────────
+/** El cuadro que decide qué cotización conviene aprobar.
+ *
+ * No extiende `RecursoService`: el comparativo no es un recurso con CRUD, es una
+ * consulta calculada. Cuelga del pedido —donde viven las cotizaciones— y del
+ * requerimiento, que es como lo piensa quien compra.
+ *
+ * Aprobar no pasa por acá: es el PATCH de estado de la cotización, el mismo que
+ * desde su formulario. Un método propio sería una segunda puerta a la misma
+ * regla.
+ */
+@Injectable({ providedIn: 'root' })
+export class ComparativoService {
+  private readonly api = inject(ApiClient);
+
+  dePedido(pedidoId: string): Observable<Comparativo> {
+    return this.api.get<Comparativo>(
+      `pedidos/${pedidoId}/comparativo-cotizaciones`,
+    );
+  }
+
+  deRequerimiento(requerimientoId: string): Observable<Comparativo> {
+    return this.api.get<Comparativo>(
+      `requerimientos/${requerimientoId}/comparativo-cotizaciones`,
+    );
+  }
 }
 
 // ── Cabeceras ───────────────────────────────────────────────────────────────

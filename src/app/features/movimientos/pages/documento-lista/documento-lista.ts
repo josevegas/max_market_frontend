@@ -11,6 +11,7 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { AppError } from '../../../../core/http/api-error';
 import { Almacen } from '../../../almacenes/models/almacenes.model';
@@ -44,6 +45,7 @@ import {
     TableModule,
     TagModule,
     ToggleSwitchModule,
+    TooltipModule,
   ],
   templateUrl: './documento-lista.html',
 })
@@ -171,6 +173,21 @@ export class DocumentoLista implements OnInit {
 
   editar(d: DocumentoCabecera): void {
     this.router.navigate(['/', this.tipo().clave, d.id]);
+  }
+
+  /** Solo las cotizaciones se comparan: son las únicas de las que hay varias
+   * compitiendo por el mismo documento padre. */
+  readonly comparable = computed(() => this.tipo().clave === 'cotizaciones');
+
+  /** Al comparativo del pedido del que cuelga esta cotización.
+   *
+   * Se entra por el pedido y no por la cotización porque lo que se compara son
+   * todas las de ese pedido, y la fila ya trae su `pedido_id`.
+   */
+  comparar(d: DocumentoCabecera): void {
+    const pedidoId = d['pedido_id'] as string | undefined;
+    if (!pedidoId) return;
+    this.router.navigate(['/cotizaciones/comparar', pedidoId]);
   }
 
   darDeBaja(d: DocumentoCabecera): void {

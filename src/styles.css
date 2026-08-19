@@ -17,6 +17,27 @@ html.dark-mode *::-webkit-scrollbar-track { background: #13161d; }
 html.dark-mode *::-webkit-scrollbar-thumb { background: #2a2e38; border-radius: 6px; }
 html.dark-mode *::-webkit-scrollbar-thumb:hover { background: #3a3f4d; }
 
+/* Scroll sin barra visible.
+ *
+ * Para contenedores que tienen que poder desplazarse pero en los que la barra
+ * es ruido: el sidebar, que se desplaza cuando el menú no entra en pantalla.
+ * Se sigue pudiendo desplazar con la rueda, el trackpad y el teclado; lo único
+ * que desaparece es el dibujo de la barra.
+ *
+ * Van las tres declaraciones porque cada motor la esconde de una forma
+ * distinta, y `::-webkit-scrollbar` tiene que ir aparte: es un pseudo-elemento,
+ * no una propiedad. `display: none` gana sobre el `width: 10px` que el tema
+ * oscuro aplica a `*::-webkit-scrollbar` sin necesidad de subir especificidad,
+ * porque son propiedades distintas y un elemento sin caja no se pinta.
+ */
+.scroll-sin-barra {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* Edge legacy */
+}
+.scroll-sin-barra::-webkit-scrollbar {
+  display: none;                /* Chrome, Safari, Edge */
+}
+
 /* Tooltip PrimeNG sin saltos de línea */
 .p-tooltip.whitespace-nowrap { max-width: none; }
 .p-tooltip.whitespace-nowrap .p-tooltip-text { white-space: nowrap; }

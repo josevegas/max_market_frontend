@@ -12,8 +12,16 @@ import { TabsModule } from 'primeng/tabs';
 import { TagModule } from 'primeng/tag';
 
 import { AppError } from '../../../../core/http/api-error';
-import { UnidadMedida } from '../../../almacenes/models/almacenes.model';
-import { UnidadMedidaService } from '../../../almacenes/services/almacenes.service';
+import {
+  Almacen,
+  ProductoLote,
+  UnidadMedida,
+} from '../../../almacenes/models/almacenes.model';
+import {
+  AlmacenService,
+  ProductoLoteService,
+  UnidadMedidaService,
+} from '../../../almacenes/services/almacenes.service';
 import { ProveedorDelProducto } from '../../../proveedores/models/catalogo.model';
 import { ProveedorProductoService } from '../../../proveedores/services/proveedor-productos.service';
 import {
@@ -65,6 +73,8 @@ export class ProductoForm implements OnInit {
   private readonly subCategoriaSvc = inject(SubCategoriaService);
   private readonly presentacionSvc = inject(PresentacionService);
   private readonly unidadSvc = inject(UnidadMedidaService);
+  private readonly loteSvc = inject(ProductoLoteService);
+  private readonly almacenSvc = inject(AlmacenService);
   private readonly asignacionSvc = inject(ProveedorProductoService);
   private readonly msg = inject(MessageService);
   private readonly router = inject(Router);
@@ -107,6 +117,64 @@ export class ProductoForm implements OnInit {
    *  la ficha de la empresa. Llega ordenado del más rápido al más lento. */
   readonly proveedores = signal<ProveedorDelProducto[]>([]);
   readonly cargandoProveedores = signal(false);
+
+  /** Los lotes de este producto: el stock físico, bulto por bulto.
+   *
+   * Solo lectura. La carga y la corrección de lotes viven en su propia pantalla
+   * (y en la recepción, que es lo que los crea); acá la pregunta es la inversa
+   * —"de este producto, qué hay y dónde"— y para eso alcanza con verlos.
+   */
+  readonly lotes = signal<ProductoLote[]>([]);
+  readonly cargandoLotes = signal(false);
+  readonly almacenes = signal<Almacen[]>([]);
+
+  readonly nombreAlmacen = computed(
+    () => new Map(this.almacenes().map((a) => [a.id, a.nombre])),
+  );
+
+  /** La unidad en la que están las cantidades de los lotes: la de venta de este
+   * producto. El lote no lleva unidad propia. */
+  readonly unidadDeLosLotes = computed(() => {
+    // Se lee de `producto()` y no de `form`: `form` es un objeto llano y un
+    // `computed` que lo mirara no se recalcularía al cargar el producto.
+    const venta = this.producto()?.unidad_venta;
+    return this.unidades().find((u) => u.id === venta)?.descripcion ?? '';
+  });
+
+  /** Lo que suman los lotes activos y disponibles: el mismo criterio que usa
+   * `GET /almacenes/{id}/stock`, para que las dos pantallas no digan números
+   * distintos del mismo producto. Lo agotado o inmovilizado está en el almacén
+   * pero no se puede vender. */
+  readonly totalDisponible = computed(() =>
+    this.lotes()
+      .filter((l) => l.is_active && l.estado === 'disponible')
+      .reduce((suma, l) => suma + l.cantidad, 0),
+  );
+
+  /** Lotes que vencen dentro de su propia ventana de alerta, o de 30 días si no
+   * tienen una configurada. Es lo que hay que mover primero. */
+  readonly porVencer = computed(() => {
+    const hoy = new Date();
+    return this.lotes().filter((l) => {
+      if (!l.fecha_vencimiento || !l.is_active) return false;
+      const dias = l.dias_alerta_vencimiento ?? 30;
+      const limite = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + dias);
+      return new Date(`${l.fecha_vencimiento}T00:00:00`) <= limite;
+    });
+  });
+
+  /** Si este lote entra en la ventana de alerta de su vencimiento. */
+  vencePronto(lote: ProductoLote): boolean {
+    return this.porVencer().some((l) => l.id === lote.id);
+  }
+
+  /** El mismo criterio de color que las pantallas de almacenes, para que un
+   * lote inmovilizado no se vea de un modo acá y de otro allá. */
+  severidadLote(estado: string): 'success' | 'warn' | 'danger' {
+    if (estado === 'disponible') return 'success';
+    if (estado === 'agotado') return 'danger';
+    return 'warn';
+  }
 
   form: ProductoCreate = this.formVacio();
 
@@ -175,6 +243,7 @@ export class ProductoForm implements OnInit {
         this.categoriaSel.set(p.categoria_id);
         this.cargando.set(false);
         this.cargarProveedores(p.id);
+        this.cargarLotes(p.id);
       },
       error: (e: AppError) => {
         this.cargando.set(false);
@@ -193,6 +262,39 @@ export class ProductoForm implements OnInit {
       // Un fallo acá no debe tapar el formulario con un toast: el panel se
       // queda vacío y el producto se sigue pudiendo editar.
       error: () => this.cargandoProveedores.set(false),
+    });
+  }
+
+  /** Los lotes de este producto, del que vence antes al que vence después.
+   *
+   * Se piden a `/productos-lote?producto_id=`, que es el filtro que la API ya
+   * expone. `listarTodo()` y no `listar()`: un producto de rotación alta puede
+   * pasar de una página, y una pestaña que muestra "el stock" truncado en
+   * silencio es peor que no mostrarlo.
+   *
+   * El orden se hace acá porque el endpoint no ordena por vencimiento, y ese es
+   * el orden en que se despacha la mercadería. Los que no vencen van al final.
+   */
+  private cargarLotes(productoId: string): void {
+    this.cargandoLotes.set(true);
+    this.almacenSvc.listar({ limite: 500 }).subscribe({
+      next: (a) => this.almacenes.set(a),
+      error: () => this.almacenes.set([]),
+    });
+    this.loteSvc.listarTodo({ producto_id: productoId }).subscribe({
+      next: (items) => {
+        this.lotes.set(
+          [...items].sort((a, b) => {
+            if (!a.fecha_vencimiento) return b.fecha_vencimiento ? 1 : 0;
+            if (!b.fecha_vencimiento) return -1;
+            return a.fecha_vencimiento.localeCompare(b.fecha_vencimiento);
+          }),
+        );
+        this.cargandoLotes.set(false);
+      },
+      // Igual que con los proveedores: un fallo acá deja la pestaña vacía, no
+      // tapa el formulario con un toast.
+      error: () => this.cargandoLotes.set(false),
     });
   }
 

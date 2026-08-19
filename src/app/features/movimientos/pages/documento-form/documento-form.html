@@ -3,19 +3,51 @@
     <div class="flex items-start gap-3">
       <p-button icon="pi pi-arrow-left" severity="secondary" [text]="true" (onClick)="volver()" />
       <div>
-        <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">
-          {{ esNuevo() ? 'Nuevo' : 'Editar' }} {{ tipo().singular }}
-        </h1>
+        <div class="flex items-center gap-2 flex-wrap">
+          <h1 class="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">
+            {{ esNuevo() ? 'Nuevo' : 'Editar' }} {{ tipo().singular }}
+          </h1>
+          @if (estadoActual(); as estado) {
+            <p-tag [value]="estado" severity="info" />
+          }
+        </div>
         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ tipo().descripcion }}</p>
       </div>
     </div>
-    <p-button
-      [label]="esNuevo() ? 'Crear' : 'Guardar'"
-      icon="pi pi-check"
-      [loading]="guardando()"
-      [disabled]="!valido"
-      (onClick)="guardar()"
-    />
+    <div class="flex items-center gap-2 flex-wrap justify-end">
+      @if (puedeComparar()) {
+        <!-- Antes de aprobar a ojo: el comparativo pone las cotizaciones del
+             mismo pedido lado a lado con los cuatro criterios pesados. -->
+        <p-button
+          label="Comparar"
+          icon="pi pi-chart-bar"
+          severity="info"
+          [outlined]="true"
+          (onClick)="comparar()"
+        />
+      }
+      <!-- Los botones de revisión guardan primero y después mueven el estado
+           (ver `cambiarEstado`), así que comparten el `valido` de Guardar: con
+           una línea a medias no se aprueba nada. -->
+      @for (accion of acciones(); track accion.codigo) {
+        <p-button
+          [label]="accion.etiqueta"
+          [icon]="accion.icono"
+          [severity]="accion.severidad"
+          [outlined]="true"
+          [loading]="guardando()"
+          [disabled]="!valido"
+          (onClick)="cambiarEstado(accion)"
+        />
+      }
+      <p-button
+        [label]="esNuevo() ? 'Crear' : 'Guardar'"
+        icon="pi pi-check"
+        [loading]="guardando()"
+        [disabled]="!valido"
+        (onClick)="guardar()"
+      />
+    </div>
   </div>
 
   <!-- Cabecera -->
@@ -48,19 +80,6 @@
       </div>
 
       <div class="flex flex-col gap-1">
-        <label class="text-xs font-medium text-slate-500">Estado *</label>
-        <p-select
-          [(ngModel)]="estadoId"
-          [options]="estadosLista()"
-          optionLabel="descripcion"
-          optionValue="id"
-          placeholder="Seleccione el estado"
-          appendTo="body"
-          styleClass="w-full"
-        />
-      </div>
-
-      <div class="flex flex-col gap-1">
         <label class="text-xs font-medium text-slate-500">Fecha *</label>
         <p-datepicker
           [(ngModel)]="fecha"
@@ -88,6 +107,20 @@
         <div class="flex flex-col gap-1">
           <label class="text-xs font-medium text-slate-500">Tiempo de atención (días)</label>
           <p-inputnumber [(ngModel)]="tiempoAtencion" [min]="0" [max]="365" styleClass="w-full" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-slate-500">Condición de pago (días)</label>
+          <p-inputnumber
+            [(ngModel)]="condicionPagoDias"
+            [min]="0"
+            [max]="365"
+            styleClass="w-full"
+          />
+          <!-- Pesa 20% en el comparativo: más crédito financia al market. Sin
+               este campo el criterio quedaría siempre en cero. -->
+          <span class="text-[11px] text-slate-400">
+            0 es contado. Cuenta 20% en el comparativo.
+          </span>
         </div>
       }
     </div>

@@ -45,6 +45,18 @@
             </span>
           }
         </p-tab>
+        <!-- Sin producto guardado no hay lotes que buscar. -->
+        <p-tab value="lotes" [disabled]="esNuevo()">
+          <i class="pi pi-box mr-2"></i>
+          Lotes
+          @if (!esNuevo() && lotes().length) {
+            <span
+              class="ml-2 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-surface-2 text-slate-600 dark:text-slate-300"
+            >
+              {{ lotes().length }}
+            </span>
+          }
+        </p-tab>
       </p-tablist>
 
       <p-tabpanels class="!bg-transparent !px-0">
@@ -276,6 +288,115 @@
                 <tr>
                   <td colspan="3" class="text-center text-slate-400 py-8">
                     Ningún proveedor distribuye este producto todavía
+                  </td>
+                </tr>
+              </ng-template>
+            </p-table>
+          </div>
+        </p-tabpanel>
+
+        <p-tabpanel value="lotes">
+          <!-- Solo lectura: los lotes los crea la recepción y se corrigen en su
+               propia pantalla. Acá la pregunta es la inversa —de este producto,
+               qué hay y dónde— y para eso alcanza con verlos. -->
+          <div class="bg-white dark:bg-surface-1 rounded-xl border border-slate-200 dark:border-surface-border p-5 space-y-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <i class="pi pi-box text-brand-600"></i>
+                  <h3 class="font-semibold text-slate-800 dark:text-slate-100">
+                    Lotes de este producto
+                  </h3>
+                </div>
+                <p class="text-xs text-slate-400">
+                  Del que vence antes al que vence después. Los crea la
+                  recepción de mercadería; no se cargan a mano.
+                </p>
+              </div>
+
+              <!-- El total va arriba y no como fila de la tabla: es el número
+                   que se viene a buscar, y una fila de totales se pierde al
+                   final de una lista larga. -->
+              <div class="flex gap-2 flex-wrap">
+                <div
+                  class="px-3 py-2 rounded-lg border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface-2"
+                >
+                  <div class="text-[11px] text-slate-400 uppercase tracking-wide">Disponible</div>
+                  <div class="font-mono font-semibold text-slate-800 dark:text-slate-100">
+                    {{ totalDisponible() }}
+                    <span class="text-[11px] font-normal text-slate-400">
+                      {{ unidadDeLosLotes() }}
+                    </span>
+                  </div>
+                </div>
+                @if (porVencer().length) {
+                  <div
+                    class="px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40"
+                  >
+                    <div class="text-[11px] text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+                      Por vencer
+                    </div>
+                    <div class="font-mono font-semibold text-amber-700 dark:text-amber-300">
+                      {{ porVencer().length }}
+                      <span class="text-[11px] font-normal">
+                        {{ porVencer().length === 1 ? 'lote' : 'lotes' }}
+                      </span>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <p-table [value]="lotes()" [loading]="cargandoLotes()" styleClass="p-datatable-sm">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th class="w-40">Lote</th>
+                  <th>Almacén</th>
+                  <th class="w-32 text-right">Cantidad</th>
+                  <th class="w-32">Ingreso</th>
+                  <th class="w-36">Vencimiento</th>
+                  <th class="w-32 text-center">Estado</th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-l>
+                <tr [class.opacity-50]="!l.is_active">
+                  <td class="font-mono text-sm font-medium">{{ l.codigo_lote }}</td>
+                  <td class="text-sm text-slate-600 dark:text-slate-300">
+                    {{ nombreAlmacen().get(l.almacen_id) || '—' }}
+                  </td>
+                  <td class="text-right whitespace-nowrap">
+                    <!-- La unidad no es un campo del lote: es la de venta del
+                         producto, la misma para todas las filas. -->
+                    <span class="font-mono text-sm">{{ l.cantidad }}</span>
+                  </td>
+                  <td class="font-mono text-sm">{{ l.fecha_ingreso }}</td>
+                  <td class="font-mono text-sm">
+                    @if (l.fecha_vencimiento) {
+                      <span
+                        [class.text-amber-600]="vencePronto(l)"
+                        [class.dark:text-amber-400]="vencePronto(l)"
+                        [class.font-semibold]="vencePronto(l)"
+                      >
+                        {{ l.fecha_vencimiento }}
+                      </span>
+                      @if (l.dias_alerta_vencimiento != null) {
+                        <span class="text-[11px] text-slate-400 ml-1">
+                          (avisa {{ l.dias_alerta_vencimiento }} d antes)
+                        </span>
+                      }
+                    } @else {
+                      <span class="text-slate-400">No vence</span>
+                    }
+                  </td>
+                  <td class="text-center">
+                    <p-tag [value]="l.estado" [severity]="severidadLote(l.estado)" />
+                  </td>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="emptymessage">
+                <tr>
+                  <td colspan="6" class="text-center text-slate-400 py-8">
+                    Este producto no tiene lotes todavía. Entran al recibir mercadería.
                   </td>
                 </tr>
               </ng-template>

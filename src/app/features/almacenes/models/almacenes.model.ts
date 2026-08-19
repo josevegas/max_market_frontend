@@ -55,29 +55,72 @@ export interface ProductoAlmacenCreate {
 export type ProductoAlmacenUpdate = Partial<ProductoAlmacenCreate>;
 
 // ── Lote ────────────────────────────────────────────────────────────────────
-/** Cada ingreso de mercadería con su vencimiento. Nace de una guía de
- * remisión: es lo que ata el lote al documento que lo trajo. */
+/** Cada ingreso de mercadería con su vencimiento, en el almacén donde quedó.
+ *
+ * El lote es la unidad de stock: no lleva unidad de medida propia, su
+ * `cantidad` va siempre en la **unidad de venta del producto**, que es en la
+ * que el market mueve el stock. La guía viene en la unidad de compra y la API
+ * convierte entre las dos.
+ */
 export interface ProductoLote extends Auditoria {
-  guia_remision_id: string;
+  /** Dónde está la mercadería. Es lo que hace el stock atribuible a un
+   * almacén y comparable contra el mínimo de `ProductoAlmacen`. */
+  almacen_id: string;
+  /** Nulo cuando el lote entró por una recepción contra orden de compra
+   * directa: el proveedor entregó sin guía previa. */
+  guia_remision_id: string | null;
   producto_id: string;
-  unidad_medida_id: string;
   fecha_ingreso: string;
   cantidad: number;
+  /** Lo que costó una unidad **de venta** de este lote. La línea de recepción
+   * cobra en su propia unidad y la API convierte al guardarlo, así que este
+   * número es comparable entre lotes. Llega como string por la precisión
+   * decimal del backend. */
+  precio_compra: string | number;
   codigo_lote: string;
   fecha_vencimiento: string | null;
+  /** Con cuántos días de antelación avisar del vencimiento. Nulo si el
+   * producto no caduca o si nadie lo configuró. */
+  dias_alerta_vencimiento: number | null;
   estado: EstadoExistencia;
 }
 export interface ProductoLoteCreate {
-  guia_remision_id: string;
+  almacen_id: string;
+  guia_remision_id?: string | null;
   producto_id: string;
-  unidad_medida_id: string;
   fecha_ingreso: string;
   cantidad: number;
+  precio_compra?: number;
   codigo_lote: string;
   fecha_vencimiento?: string | null;
+  dias_alerta_vencimiento?: number | null;
   estado: EstadoExistencia;
 }
 export type ProductoLoteUpdate = Partial<ProductoLoteCreate>;
+
+// ── Stock que suman los lotes ───────────────────────────────────────────────
+/** Lo que hay de un producto en un almacén, contra lo que debería haber.
+ *
+ * No es una tabla: lo calcula la API sumando los lotes **disponibles** de ese
+ * almacén (lo agotado o inmovilizado está ahí pero no se puede vender). Es la
+ * respuesta de `GET /almacenes/{id}/stock`.
+ */
+export interface StockDeProducto {
+  producto_id: string;
+  /** En qué unidad está `disponible`. Viene explícito porque el mínimo de la
+   * ficha puede estar en otra, y sin decirlo el número sería ambiguo. */
+  unidad_venta_id: string;
+  disponible: number;
+  stock_minimo: number | null;
+  stock_maximo: number | null;
+  /** Ya comparado **en unidad mínima** por el servidor: la ficha y el lote no
+   * tienen por qué estar en la misma unidad, así que el cliente no puede
+   * deducirlo dividiendo los dos números de arriba. */
+  bajo_minimo: boolean;
+  /** `false` cuando hay mercadería pero nadie creó la ficha del producto en
+   * este almacén: hay stock sin un mínimo contra el cual medirlo. */
+  tiene_ficha: boolean;
+}
 
 // ── Catálogos que se consultan para los selectores ──────────────────────────
 /** `Market` se define en el módulo de organización, que es su dueño. */

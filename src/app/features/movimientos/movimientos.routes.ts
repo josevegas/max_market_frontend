@@ -37,6 +37,15 @@ const rutasDocumentos: Routes = CLAVES.flatMap((clave) => [
 ]);
 
 export const routes: Routes = [
+  // Antes de las generadas: `cotizaciones/comparar/:pedidoId` tiene que ganarle
+  // a `cotizaciones/:id`, que si no interpretaría "comparar" como un id.
+  {
+    path: 'cotizaciones/comparar/:pedidoId',
+    loadComponent: () =>
+      import('./pages/comparativo-cotizaciones/comparativo-cotizaciones').then(
+        (m) => m.ComparativoCotizaciones,
+      ),
+  },
   {
     path: 'estados',
     loadComponent: () =>

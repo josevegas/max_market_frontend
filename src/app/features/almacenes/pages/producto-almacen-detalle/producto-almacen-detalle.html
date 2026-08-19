@@ -1,0 +1,576 @@
+<p-dialog
+  [visible]="abierto()"
+  (visibleChange)="alCambiarVisible($event)"
+  [modal]="true"
+  [style]="{ width: '62rem' }"
+  [breakpoints]="{ '1100px': '94vw' }"
+>
+  <ng-template pTemplate="header">
+    <div class="min-w-0">
+      <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 truncate">
+        {{ producto()?.descripcion_corta || 'Producto' }}
+      </h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+        <span class="font-mono">{{ producto()?.sku || '—' }}</span>
+        <span class="mx-1.5 text-slate-300">·</span>
+        <i class="pi pi-warehouse text-[11px]"></i>
+        {{ almacen()?.nombre || 'Almacén' }}
+      </p>
+    </div>
+  </ng-template>
+
+  @if (ficha(); as f) {
+    <!-- El stock va fuera de las pestañas: es la razón por la que se abre esta
+         ficha, y esconderlo en una pestaña costaría un clic para verlo. -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pb-4">
+      <div
+        class="px-3 py-2 rounded-lg border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface-2"
+      >
+        <div class="text-[10px] text-slate-400 uppercase tracking-wide">En el almacén</div>
+        <div class="flex items-baseline gap-1 mt-0.5">
+          <span class="font-mono text-xl font-bold leading-none" [class]="claseDisponible()">
+            {{ disponible() }}
+          </span>
+          <span class="text-[11px] text-slate-400 truncate">{{ unidadDisponible() }}</span>
+          @if (unidadesDistintas()) {
+            <!-- La ficha está en otra unidad que los lotes: sus números no se
+                 comparan a ojo contra este. El semáforo sigue valiendo porque
+                 el servidor compara en unidad mínima. -->
+            <i
+              class="pi pi-info-circle text-[10px] text-amber-500"
+              pTooltip="El mínimo y el máximo están en otra unidad que los lotes. El semáforo se calcula en unidad mínima."
+              tooltipPosition="bottom"
+            ></i>
+          }
+        </div>
+        <div
+          class="text-[10px] mt-0.5"
+          [class.text-red-600]="severidad() === 'danger'"
+          [class.text-amber-600]="severidad() === 'warn'"
+          [class.text-slate-400]="severidad() === 'success'"
+        >
+          {{ leyendaStock() }}
+        </div>
+      </div>
+
+      <div
+        class="px-3 py-2 rounded-lg border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface-2"
+      >
+        <div class="text-[10px] text-slate-400 uppercase tracking-wide">Mínimo</div>
+        <div class="font-mono text-xl font-semibold leading-none mt-1 text-slate-800 dark:text-slate-100">
+          {{ f.stock_minimo }}
+        </div>
+        <div class="text-[10px] text-slate-400 mt-0.5 truncate">
+          {{ unidadNombre(f.unidad_medida_id) }}
+        </div>
+      </div>
+
+      <div
+        class="px-3 py-2 rounded-lg border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface-2"
+      >
+        <div class="text-[10px] text-slate-400 uppercase tracking-wide">Máximo</div>
+        <div class="font-mono text-xl font-semibold leading-none mt-1 text-slate-800 dark:text-slate-100">
+          {{ f.stock_maximo ?? '—' }}
+        </div>
+        <div class="text-[10px] text-slate-400 mt-0.5 truncate">
+          {{ f.stock_maximo == null ? 'Sin techo' : unidadNombre(f.unidad_medida_id) }}
+        </div>
+      </div>
+
+      <div
+        class="px-3 py-2 rounded-lg border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface-2"
+      >
+        <div class="text-[10px] text-slate-400 uppercase tracking-wide">Precio tienda</div>
+        <div class="font-mono text-xl font-semibold leading-none mt-1 text-slate-800 dark:text-slate-100">
+          {{ f.precio_venta_tienda }}
+        </div>
+        <div class="text-[10px] text-slate-400 mt-0.5">Por unidad de venta</div>
+      </div>
+    </div>
+
+    <p-tabs value="general">
+      <p-tablist>
+        <p-tab value="general">
+          <i class="pi pi-info-circle mr-2"></i>
+          Datos básicos
+        </p-tab>
+        <p-tab value="lotes">
+          <i class="pi pi-box mr-2"></i>
+          Lotes
+          @if (!cargandoLotes()) {
+            <span class="ml-2 text-[11px] text-slate-400">({{ lotes().length }})</span>
+          }
+        </p-tab>
+      </p-tablist>
+
+      <p-tabpanels class="!bg-transparent !px-0">
+        <p-tabpanel value="general">
+          <div class="space-y-5 pt-1">
+            <!-- Lo que este almacén decide del producto. Se edita acá porque es
+                 propio de este almacén: otro puede tener otro mínimo y otro
+                 precio de tienda para el mismo producto. -->
+            <section
+              class="rounded-xl border border-slate-200 dark:border-surface-border p-4 space-y-3"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Ficha en {{ almacen()?.nombre || 'este almacén' }}
+                </h3>
+                <span class="text-[11px] text-slate-400">Solo afecta a este almacén</span>
+              </div>
+
+              <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-medium text-slate-500">Unidad *</label>
+                  <p-select
+                    [(ngModel)]="fUnidadId"
+                    [options]="unidades()"
+                    optionLabel="descripcion"
+                    optionValue="id"
+                    placeholder="Unidad"
+                    [filter]="true"
+                    filterBy="descripcion"
+                    appendTo="body"
+                    styleClass="w-full"
+                  />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-medium text-slate-500">Stock mínimo *</label>
+                  <p-inputnumber [(ngModel)]="fStockMinimo" [min]="0" styleClass="w-full" />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-medium text-slate-500">Stock máximo</label>
+                  <p-inputnumber
+                    [(ngModel)]="fStockMaximo"
+                    [min]="0"
+                    placeholder="Sin techo"
+                    styleClass="w-full"
+                  />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-medium text-slate-500">Precio tienda *</label>
+                  <p-inputnumber
+                    [(ngModel)]="fPrecioVenta"
+                    [min]="0"
+                    mode="decimal"
+                    [minFractionDigits]="2"
+                    [maxFractionDigits]="2"
+                    styleClass="w-full"
+                  />
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label class="text-[11px] font-medium text-slate-500">Estado *</label>
+                  <p-select
+                    [(ngModel)]="fEstado"
+                    [options]="estados"
+                    optionLabel="label"
+                    optionValue="value"
+                    appendTo="body"
+                    styleClass="w-full"
+                  />
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between gap-3">
+                @if (errorFicha) {
+                  <p class="text-xs text-red-600 dark:text-red-400">{{ errorFicha }}</p>
+                } @else {
+                  <span></span>
+                }
+                <p-button
+                  label="Guardar ficha"
+                  icon="pi pi-check"
+                  size="small"
+                  [loading]="guardandoFicha()"
+                  [disabled]="!fichaValida"
+                  (onClick)="guardarFicha()"
+                />
+              </div>
+            </section>
+
+            <!-- El maestro del producto es el mismo para todos los almacenes,
+                 así que no se toca desde acá: se edita en su propia ficha. -->
+            <section class="space-y-3">
+              <div class="flex items-center justify-between gap-3">
+                <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Datos del producto
+                </h3>
+                @if (producto(); as p) {
+                  <a
+                    [routerLink]="['/productos', p.id]"
+                    class="text-xs text-brand-600 hover:underline whitespace-nowrap"
+                  >
+                    Editar en Productos
+                    <i class="pi pi-arrow-up-right text-[10px] ml-0.5"></i>
+                  </a>
+                }
+              </div>
+
+              @if (producto(); as p) {
+                <dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-3">
+                  <div>
+                    <dt class="text-[11px] text-slate-400">SKU</dt>
+                    <dd class="text-sm font-mono text-slate-800 dark:text-slate-100 truncate">
+                      {{ p.sku }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Código de barras</dt>
+                    <dd class="text-sm font-mono text-slate-800 dark:text-slate-100 truncate">
+                      {{ p.codigo_barras || '—' }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Tipo</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      {{ tipoProducto() || '—' }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Marca</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      {{ p.marca_fabricante || '—' }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Unidad de compra</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      {{ unidadNombre(p.unidad_compra) }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Unidad de venta</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      {{ unidadNombre(p.unidad_venta) }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Presentación</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      @if (cargandoCatalogos()) {
+                        <p-skeleton width="5rem" height="0.9rem" />
+                      } @else {
+                        {{ presentacionNombre() }}
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Familia</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      @if (cargandoCatalogos()) {
+                        <p-skeleton width="5rem" height="0.9rem" />
+                      } @else {
+                        {{ familiaNombre() }}
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Sub familia</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      @if (cargandoCatalogos()) {
+                        <p-skeleton width="5rem" height="0.9rem" />
+                      } @else {
+                        {{ subFamiliaNombre() }}
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Categoría</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      @if (cargandoCatalogos()) {
+                        <p-skeleton width="5rem" height="0.9rem" />
+                      } @else {
+                        {{ categoriaNombre() }}
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-[11px] text-slate-400">Sub categoría</dt>
+                    <dd class="text-sm text-slate-800 dark:text-slate-100 truncate">
+                      @if (cargandoCatalogos()) {
+                        <p-skeleton width="5rem" height="0.9rem" />
+                      } @else {
+                        {{ subCategoriaNombre() }}
+                      }
+                    </dd>
+                  </div>
+                  <div class="col-span-2 sm:col-span-3 lg:col-span-4">
+                    <dt class="text-[11px] text-slate-400">Descripción legal</dt>
+                    <dd class="text-sm text-slate-700 dark:text-slate-200">
+                      {{ p.descripcion_legal || '—' }}
+                    </dd>
+                  </div>
+                </dl>
+              } @else {
+                <p class="text-sm text-slate-400 py-6 text-center">
+                  No se pudo cargar la ficha del producto.
+                </p>
+              }
+            </section>
+          </div>
+        </p-tabpanel>
+
+        <p-tabpanel value="lotes">
+          <div class="space-y-3 pt-1">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-xs text-slate-400 max-w-md">
+                Los lotes de este producto en este almacén, del que vence antes
+                al que vence después. Los crea la recepción de mercadería.
+              </p>
+              <div class="flex gap-2 flex-wrap">
+                <div
+                  class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface-2"
+                >
+                  <div class="text-[10px] text-slate-400 uppercase tracking-wide">
+                    Suma disponible
+                  </div>
+                  <div class="font-mono text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    {{ totalDisponibleEnLotes() }}
+                    <span class="text-[10px] font-normal text-slate-400">
+                      {{ unidadDisponible() }}
+                    </span>
+                  </div>
+                </div>
+                @if (porVencer().length) {
+                  <div
+                    class="px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40"
+                  >
+                    <div class="text-[10px] text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+                      Por vencer
+                    </div>
+                    <div class="font-mono text-sm font-semibold text-amber-700 dark:text-amber-300">
+                      {{ porVencer().length }}
+                      <span class="text-[10px] font-normal">
+                        {{ porVencer().length === 1 ? 'lote' : 'lotes' }}
+                      </span>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <p-table [value]="lotes()" [loading]="cargandoLotes()" styleClass="p-datatable-sm">
+              <ng-template pTemplate="header">
+                <tr>
+                  <th class="w-32">Lote</th>
+                  <th class="w-24 text-right">Cantidad</th>
+                  <th class="w-28 text-right">P. compra</th>
+                  <th class="w-28">Ingreso</th>
+                  <th>Vencimiento</th>
+                  <th class="w-28">Guía</th>
+                  <th class="w-28 text-center">Estado</th>
+                  <th class="w-16"></th>
+                </tr>
+              </ng-template>
+              <ng-template pTemplate="body" let-l>
+                <tr
+                  [class.opacity-50]="!l.is_active"
+                  [class.bg-slate-50]="loteEnEdicion() === l.id"
+                  [class.dark:bg-surface-2]="loteEnEdicion() === l.id"
+                >
+                  <td class="font-mono text-sm font-medium">{{ l.codigo_lote }}</td>
+                  <td class="text-right font-mono text-sm">{{ l.cantidad }}</td>
+                  <!-- Por unidad de venta: la API convierte desde la unidad de
+                       la línea de recepción, así que las filas se comparan. -->
+                  <td class="text-right font-mono text-sm">{{ l.precio_compra }}</td>
+                  <td class="font-mono text-sm">{{ l.fecha_ingreso }}</td>
+                  <td class="font-mono text-sm">
+                    @if (l.fecha_vencimiento) {
+                      <span
+                        [class.text-amber-600]="vencePronto(l)"
+                        [class.dark:text-amber-400]="vencePronto(l)"
+                        [class.font-semibold]="vencePronto(l)"
+                      >
+                        {{ l.fecha_vencimiento }}
+                      </span>
+                      @if (l.dias_alerta_vencimiento != null) {
+                        <span class="text-[10px] text-slate-400 ml-1">
+                          (avisa {{ l.dias_alerta_vencimiento }} d antes)
+                        </span>
+                      }
+                    } @else {
+                      <span class="text-slate-400">No vence</span>
+                    }
+                  </td>
+                  <td class="font-mono text-xs text-slate-600 dark:text-slate-300 truncate">
+                    {{ etiquetaGuia(l) }}
+                  </td>
+                  <td class="text-center">
+                    <p-tag [value]="l.estado" [severity]="severidadEstado(l.estado)" />
+                  </td>
+                  <td class="text-center">
+                    <p-button
+                      icon="pi pi-pencil"
+                      severity="secondary"
+                      [text]="true"
+                      size="small"
+                      [disabled]="loteEnEdicion() === l.id"
+                      (onClick)="editarLote(l)"
+                    />
+                  </td>
+                </tr>
+
+                <!-- El lote se edita en una fila desplegada debajo de la suya:
+                     un segundo diálogo encima de este dejaría al de atrás
+                     inalcanzable, y ocho editores no entran en una fila. -->
+                @if (loteEnEdicion() === l.id) {
+                  <tr>
+                    <td colspan="8" class="!p-0">
+                      <div
+                        class="border-l-2 border-brand-500 bg-slate-50 dark:bg-surface-2 px-4 py-3 space-y-3"
+                      >
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-medium text-slate-500">
+                              Código de lote *
+                            </label>
+                            <input pInputText [(ngModel)]="lCodigo" maxlength="30" class="w-full" />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                              Cantidad
+                              <i
+                                class="pi pi-info-circle text-[10px] text-amber-500"
+                                pTooltip="La recepción recalcula este valor a partir de sus líneas: lo que se escriba acá se pierde en la próxima entrega de este lote."
+                                tooltipPosition="top"
+                              ></i>
+                            </label>
+                            <p-inputnumber [(ngModel)]="lCantidad" [min]="0" styleClass="w-full" />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                              Precio de compra
+                              <i
+                                class="pi pi-info-circle text-[10px] text-amber-500"
+                                pTooltip="La recepción recalcula este valor a partir de sus líneas: lo que se escriba acá se pierde en la próxima entrega de este lote."
+                                tooltipPosition="top"
+                              ></i>
+                            </label>
+                            <p-inputnumber
+                              [(ngModel)]="lPrecioCompra"
+                              [min]="0"
+                              mode="decimal"
+                              [minFractionDigits]="2"
+                              [maxFractionDigits]="2"
+                              styleClass="w-full"
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-medium text-slate-500">Estado *</label>
+                            <p-select
+                              [(ngModel)]="lEstado"
+                              [options]="estados"
+                              optionLabel="label"
+                              optionValue="value"
+                              appendTo="body"
+                              styleClass="w-full"
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                              Fecha de ingreso *
+                              <i
+                                class="pi pi-info-circle text-[10px] text-amber-500"
+                                pTooltip="La recepción recalcula esta fecha: toma la de la primera entrega del lote."
+                                tooltipPosition="top"
+                              ></i>
+                            </label>
+                            <p-datepicker
+                              [(ngModel)]="lIngreso"
+                              dateFormat="dd/mm/yy"
+                              appendTo="body"
+                              styleClass="w-full"
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-medium text-slate-500">Vencimiento</label>
+                            <p-datepicker
+                              [(ngModel)]="lVencimiento"
+                              dateFormat="dd/mm/yy"
+                              [showClear]="true"
+                              placeholder="No vence"
+                              appendTo="body"
+                              styleClass="w-full"
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-medium text-slate-500">
+                              Días de alerta
+                            </label>
+                            <p-inputnumber
+                              [(ngModel)]="lDiasAlerta"
+                              [min]="0"
+                              [max]="365"
+                              placeholder="Sin alerta"
+                              styleClass="w-full"
+                            />
+                          </div>
+                          <div class="flex flex-col gap-1">
+                            <label class="text-[11px] font-medium text-slate-500">
+                              Guía de remisión
+                            </label>
+                            <!-- Opcional: una recepción contra orden de compra
+                                 directa no tiene guía previa. -->
+                            <p-select
+                              [(ngModel)]="lGuiaId"
+                              [options]="opcionesGuia()"
+                              optionLabel="etiqueta"
+                              optionValue="id"
+                              placeholder="Sin guía"
+                              [showClear]="true"
+                              [filter]="true"
+                              filterBy="etiqueta"
+                              appendTo="body"
+                              styleClass="w-full"
+                            />
+                          </div>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-3">
+                          @if (errorLote) {
+                            <p class="text-xs text-red-600 dark:text-red-400">{{ errorLote }}</p>
+                          } @else {
+                            <span></span>
+                          }
+                          <div class="flex gap-2 whitespace-nowrap">
+                            <p-button
+                              label="Cancelar"
+                              severity="secondary"
+                              [text]="true"
+                              size="small"
+                              (onClick)="cancelarLote()"
+                            />
+                            <p-button
+                              label="Guardar lote"
+                              icon="pi pi-check"
+                              size="small"
+                              [loading]="guardandoLote()"
+                              [disabled]="!!errorLote"
+                              (onClick)="guardarLote()"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </ng-template>
+              <ng-template pTemplate="emptymessage">
+                <tr>
+                  <td colspan="8" class="text-center text-slate-400 py-8">
+                    Este producto no tiene lotes en este almacén. Entran al
+                    recibir mercadería.
+                  </td>
+                </tr>
+              </ng-template>
+            </p-table>
+          </div>
+        </p-tabpanel>
+      </p-tabpanels>
+    </p-tabs>
+  }
+
+  <ng-template pTemplate="footer">
+    <p-button label="Cerrar" severity="secondary" [text]="true" (onClick)="cerrar.emit()" />
+  </ng-template>
+</p-dialog>

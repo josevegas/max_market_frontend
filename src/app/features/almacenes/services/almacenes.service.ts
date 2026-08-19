@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { Observable } from 'rxjs';
 
 import { RecursoService } from '../../productos/services/catalogo.service';
 import {
@@ -11,6 +12,7 @@ import {
   ProductoLote,
   ProductoLoteCreate,
   ProductoLoteUpdate,
+  StockDeProducto,
   UnidadMedida,
   UnidadMedidaCreate,
   UnidadMedidaUpdate,
@@ -22,6 +24,21 @@ import {
 @Injectable({ providedIn: 'root' })
 export class AlmacenService extends RecursoService<Almacen, AlmacenCreate, AlmacenUpdate> {
   protected readonly ruta = 'almacenes';
+
+  /** Cuánto hay de cada producto en este almacén, sumando sus lotes.
+   *
+   * Cuelga del almacén y no de un recurso propio porque el stock no es una
+   * tabla: es lo que suman los lotes. Devuelve la lista pelada, sin el sobre
+   * `{items, total}` de los listados, así que no pasa por `RecursoService`.
+   *
+   * Solo aparecen los productos que tienen algún lote: uno con ficha pero sin
+   * mercadería no viene en la respuesta, y su stock es cero.
+   */
+  stock(almacenId: string, soloBajoMinimo = false): Observable<StockDeProducto[]> {
+    return this.api.get<StockDeProducto[]>(`${this.ruta}/${almacenId}/stock`, {
+      params: { bajo_minimo: soloBajoMinimo },
+    });
+  }
 }
 
 @Injectable({ providedIn: 'root' })

@@ -55,6 +55,7 @@
             <label class="text-xs font-medium text-slate-500">Guía de remisión *</label>
             <p-select
               [(ngModel)]="guiaId"
+              (ngModelChange)="alSeleccionarDocumento()"
               [options]="guiasDisponibles()"
               optionLabel="etiqueta"
               optionValue="id"
@@ -65,14 +66,17 @@
               appendTo="body"
               styleClass="w-full"
             />
-            <span class="text-[11px] text-slate-400">Solo las que aún no se recibieron</span>
+            <span class="text-[11px] text-slate-400">
+              Solo las que aún no se recibieron. Al elegirla se cargan sus líneas.
+            </span>
           </div>
         } @else {
           <div class="flex flex-col gap-1">
             <label class="text-xs font-medium text-slate-500">Orden de compra *</label>
             <p-select
               [(ngModel)]="ordenId"
-              [options]="ordenesLista()"
+              (ngModelChange)="alSeleccionarDocumento()"
+              [options]="ordenesDisponibles()"
               optionLabel="etiqueta"
               optionValue="id"
               placeholder="Seleccione la orden"
@@ -83,13 +87,17 @@
               styleClass="w-full"
             />
             <span class="text-[11px] text-slate-400">
-              Para cuando el proveedor entrega sin guía previa
+              Solo las aprobadas, para cuando el proveedor entrega sin guía
+              previa. Al elegirla se cargan sus líneas.
             </span>
           </div>
         }
 
         <div class="flex flex-col gap-1">
           <label class="text-xs font-medium text-slate-500">Almacén que recibe *</label>
+          <!-- Bloqueado cuando el documento lo dice: el almacén sale del
+               requerimiento que abrió la cadena, y recibir en otro dejaría el
+               stock en una tienda que no pidió la mercadería. -->
           <p-select
             [(ngModel)]="almacenId"
             [options]="almacenes()"
@@ -98,9 +106,16 @@
             placeholder="Seleccione el almacén"
             [filter]="true"
             filterBy="nombre,codigo"
+            [disabled]="almacenBloqueado()"
             appendTo="body"
             styleClass="w-full"
           />
+          @if (almacenBloqueado()) {
+            <span class="text-[11px] text-slate-400">
+              <i class="pi pi-lock text-[10px]"></i>
+              Lo fija el requerimiento de la cadena
+            </span>
+          }
         </div>
 
         <div class="flex flex-col gap-1">
@@ -108,9 +123,16 @@
           <p-datepicker
             [(ngModel)]="fecha"
             dateFormat="dd/mm/yy"
+            [disabled]="fechaBloqueada()"
             appendTo="body"
             styleClass="w-full"
           />
+          @if (fechaBloqueada()) {
+            <span class="text-[11px] text-slate-400">
+              <i class="pi pi-lock text-[10px]"></i>
+              La del documento de origen
+            </span>
+          }
         </div>
 
         @if (!esNuevo()) {
@@ -139,6 +161,47 @@
           />
         </div>
       </div>
+
+      @if (resolviendoOrigen()) {
+        <div class="mt-4 pt-3 border-t border-slate-100 dark:border-surface-border">
+          <p-skeleton height="2.5rem" />
+        </div>
+      } @else if (origenResuelto(); as o) {
+        <!-- Lo que dice el documento contra el que se recibe. Va en la
+             cabecera porque es lo que hay que cotejar antes de contar bultos:
+             de quién es la mercadería y por cuánto. -->
+        <div
+          class="mt-4 pt-3 border-t border-slate-100 dark:border-surface-border flex flex-wrap gap-x-8 gap-y-2"
+        >
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wide">Proveedor</div>
+            <div class="text-sm text-slate-800 dark:text-slate-100">
+              {{ o.proveedor || '—' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wide">Orden de compra</div>
+            <div class="text-sm font-mono text-slate-800 dark:text-slate-100">
+              {{ o.ordenId ? o.ordenId.slice(0, 8) : '—' }}
+              @if (o.ordenFecha) {
+                <span class="text-[11px] text-slate-400 ml-1">{{ o.ordenFecha }}</span>
+              }
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wide">Monto de la orden</div>
+            <div class="text-sm font-mono text-slate-800 dark:text-slate-100">
+              {{ o.montoOrden ?? '—' }}
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase tracking-wide">Almacén que pidió</div>
+            <div class="text-sm text-slate-800 dark:text-slate-100">
+              {{ o.almacenId ? (nombreAlmacen().get(o.almacenId) || '—') : 'No se pudo leer' }}
+            </div>
+          </div>
+        </div>
+      }
     </div>
 
     <!-- Detalle -->
@@ -149,13 +212,17 @@
             Qué entró
           </h2>
           <p class="text-xs text-slate-400 mt-0.5">
-            Esperado es lo que el papel declaraba; ingresado, lo que se aceptó
+            Esperado es lo que el papel declaraba; ingresado, lo que se aceptó.
+            Lo devuelto es la resta, y es lo que se le reclama al proveedor
           </p>
         </div>
         <div class="flex gap-2">
+          <!-- Las líneas entran solas al elegir el documento. El botón se
+               queda como reintento: si la carga falló, el select ya tiene el
+               valor y volver a elegirlo no dispararía nada. -->
           <p-button
-            label="Traer líneas del origen"
-            icon="pi pi-download"
+            label="Volver a traer del origen"
+            icon="pi pi-refresh"
             severity="secondary"
             [outlined]="true"
             [loading]="cargandoLineas()"
@@ -173,7 +240,7 @@
             <th class="w-40">Unidad</th>
             <th class="w-28">Esperado</th>
             <th class="w-28">Ingresado</th>
-            <th class="w-28">Devuelto</th>
+            <th class="w-28 text-right">Devuelto</th>
             <th class="w-32">Precio unit.</th>
             <th class="w-36">Lote</th>
             <th class="w-16"></th>
@@ -206,13 +273,33 @@
               />
             </td>
             <td>
-              <p-inputnumber [(ngModel)]="l.cantidad_esperada" [min]="0" styleClass="w-full" />
+              <p-inputnumber
+                [(ngModel)]="l.cantidad_esperada"
+                (ngModelChange)="recalcularDevuelta(l)"
+                [min]="0"
+                styleClass="w-full"
+              />
             </td>
             <td>
-              <p-inputnumber [(ngModel)]="l.cantidad_ingresada" [min]="0" styleClass="w-full" />
+              <p-inputnumber
+                [(ngModel)]="l.cantidad_ingresada"
+                (ngModelChange)="recalcularDevuelta(l)"
+                [min]="0"
+                styleClass="w-full"
+              />
             </td>
             <td>
-              <p-inputnumber [(ngModel)]="l.cantidad_devuelta" [min]="0" styleClass="w-full" />
+              <!-- Calculado: lo declarado menos lo aceptado. Al stock entra lo
+                   ingresado solo, así que esta columna es el reclamo al
+                   proveedor, no un descuento del inventario. -->
+              <div
+                class="h-10 flex items-center justify-end px-3 rounded-md border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface-2 font-mono text-sm"
+                [class.text-amber-600]="l.cantidad_devuelta > 0"
+                [class.dark:text-amber-400]="l.cantidad_devuelta > 0"
+                [class.text-slate-400]="l.cantidad_devuelta === 0"
+              >
+                {{ l.cantidad_devuelta }}
+              </div>
             </td>
             <td>
               <p-inputnumber
@@ -235,7 +322,7 @@
         <ng-template pTemplate="emptymessage">
           <tr>
             <td colspan="8" class="text-center text-slate-400 py-8">
-              Todavía no hay líneas. Traiga las del documento de origen o agréguelas a mano.
+              Todavía no hay líneas. Elija el documento de origen o agréguelas a mano.
             </td>
           </tr>
         </ng-template>
